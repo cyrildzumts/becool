@@ -113,9 +113,9 @@ namespace Utils
 
         void clear()
         {
-
-            items = std::queue<Item>();
-
+            for (int i = 0; i < size(); i++)
+                items.pop();
+            //items = std::queue<Item>();
         }
         std::queue<Item> getContainer()
         {

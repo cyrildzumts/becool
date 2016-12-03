@@ -1,40 +1,68 @@
 #include "../include/client.h"
 
+Client *Handler::client = nullptr;
+
 Client::Client(const std::string &server_ip, const std::string &port)
 {
     Logger::log("Not implemented yet");
     quit =false;
     loggedIn =false;
     socket_fd =-1;
+
 }
 
 Client::Client()
 {
+
     quit =false;
     loggedIn =false;
     socket_fd =-1;
     usage =std::string
                 (
-                     " Usage : type in the message you want to send\n"
-                     " and validate your action with the Enter key.\n"
-                     " To logout  please enter /logout and validate with \n"
-                     " with Enter key."
-                     " To see the list of available users to chat with, please \n"
-                     " enter /users and validate with the Enter key\n"
-                     " To quit this application, please enter /quit and then\n"
-                     " validate with the Enter key\n"
+                     "-------------------------------------------------------------\n"
+                     " Usage : \n"
+                     "-- To send a message, please type in :"
+                     " /username + message \n"
+                     "-- and validate your action with the Enter key.\n"
+                     "-- To logout  please enter /logout and validate with \n"
+                     "-- with Enter key. This will quit the application as well.\n"
+                     "-- To see the list of available users to chat with, please \n"
+                     "-- enter /users and validate with the Enter key\n"
+                     "-- To quit this application, please enter /quit and then\n"
+                     "-- validate with the Enter key\n"
+                     "-------------------------------------------------------------\n"
                 );
 
-    head =                  "-------------------------------------------\n"
-                            "-- Welcome to Haw Chat Application "
-                            "-- Copyright 2016 "
-                            "-------------------------------------------\n";
+    head =           "-------------------------------------------------------------\n"
+                     "--                 Welcome to Becool \n"
+                     "--                 Copyright 2016\n"
+                     "-------------------------------------------------------------\n";
+}
+
+Client::~Client()
+{
+
+}
+
+void Client::irq_handler(int irq)
+{
+    if(irq == SIGINT)
+    {
+        Logger::log("\n... quitting the app ");
+        logout();
+        quit = true;
+    }
 }
 
 void Client::init()
 {
     Logger::log("Client initialization ...");
     if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+    {
+        std::cerr << "signal" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+    if(signal(SIGINT,Handler::handler) == SIG_ERR)
     {
         std::cerr << "signal" << std::endl;
         std::exit(EXIT_FAILURE);
@@ -102,16 +130,17 @@ void Client::logout()
     LogInOut log = create_loginout(username, false);
     void *data = Serialization::Serialize<LogInOut>::serialize(log);
     int size = STR_LEN + sizeof(Header);
-    write(socket_fd, data, size);
+    send_data(data, size);
 }
 
 int Client::login()
 {
-    Logger::log("Please enter a login to register to the server");
+
     bool username_invalid = true;
     std::string username;
     Logger::log(head);
     Logger::log(usage);
+    Logger::log("Please enter a login to register to the server");
 
     int ret = 0;
     LogInOut log;
@@ -136,6 +165,7 @@ int Client::login()
             void *data = Serialization::Serialize<LogInOut>::serialize(log);
             int len = STR_LEN + sizeof(Header);
             send_data(data, len);
+            len = sizeof(Header);
             //std::this_thread::sleep_for(std::chrono::milliseconds(200));
             ret = read(socket_fd, data, len);
             if(ret < 0)
@@ -151,6 +181,11 @@ int Client::login()
             if(ret == 1)
             {
                 //Logger::log("Client received heartbeat signal ...");
+                ret = read(socket_fd, data, len);
+                if(ret > 1)
+                {
+                    decode(data, ret);
+                }
             }
 
             if(loggedIn)
@@ -266,9 +301,8 @@ void Client::shell()
         std::getline(std::cin,line, '\n');
         if( (line == "/quit") || (line == "/logout") )
         {
-            loginout = create_loginout(username, false);
-            ptr = (char*)Serialization::Serialize<LogInOut>::serialize(loginout);
-            size = sizeof(Header) + STR_LEN;
+            logout();
+            ptr = nullptr;
             break;
         }
         else if(line == "/GET" || line == "/info" || line == "/users")
@@ -307,7 +341,6 @@ void Client::shell()
 
         send_data(ptr, size);
         size = 0;
-
 
     }
     Logger::log("Quitting the shell ...");

@@ -9,11 +9,20 @@
 #include "queue.h"
 #include "inputargreader.h"
 
+using namespace std::placeholders;
+
 class Client
 {
 public:
+
+
+
     Client(const std::string &server_ip, const std::string &port);
     Client();
+    ~Client();
+
+
+    void irq_handler(int irq);
     /**
      * @brief init initialize the socket this client uses.
      */
@@ -106,7 +115,6 @@ private:
     void show_userlist()const;
 
 private:
-
     int socket_fd;
     bool loggedIn;
     std::string username;
@@ -123,4 +131,19 @@ private:
     std::vector<std::string> userlist;
 };
 
+
+struct Handler
+{
+    static void setClient(Client* cclient)
+    {
+        Handler::client = cclient;
+    }
+
+    static void handler(int irq)
+    {
+        Handler::client->irq_handler(irq);
+    }
+
+    static Client *client;
+};
 #endif // CLIENT_H
