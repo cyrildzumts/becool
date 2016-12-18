@@ -2,7 +2,7 @@
 
 Server::Server()
 {
-    stopped = false;   
+    stopped = false;
     name = "Server";
 }
 
@@ -29,9 +29,9 @@ void Server::init()
     hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV  ;
     // we could provide a host instead of nullptr
     if(getaddrinfo( nullptr,
-                   port.c_str(),
-                   &hints,
-                   &result) != 0)
+                    port.c_str(),
+                    &hints,
+                    &result) != 0)
     {
         perror("getaddrinfo()");
         std::exit(EXIT_FAILURE);
@@ -131,7 +131,7 @@ void Server::addClient(User *client)
     {
 
     }
-    clients.push_back(client);
+    local_clients.push_back(client);
     client_shield.unlock();
 
 }
@@ -141,7 +141,7 @@ User* Server::getClient(const std::string &username)
 {
 
     User *client = nullptr;
-    for(User* clt : clients)
+    for(User* clt : local_clients)
     {
         if(clt->getUsername() == username)
         {
@@ -156,7 +156,7 @@ User* Server::getClient(const std::string &username)
 User* Server::getClient(int uid)
 {
     User *client = nullptr;
-    for(User* clt : clients)
+    for(User* clt : local_clients)
     {
         if(clt->getUid() == uid)
         {
@@ -170,19 +170,52 @@ User* Server::getClient(int uid)
 
 void Server::update_userlist(const ControlInfo &info, int sender_uid)
 {
-    (void)info;
-    (void)sender_uid;
+    std::string user;
+    RemoteEntry re ;
+    for(int i = 0; i < info.header.length; i++)
+    {
+        user = info.entries[i].username;
+        auto local = std::find_if(local_clients.begin(), local_clients.end(),[user](User *client){
+                return client->getUsername() == user ;
+    } );
+        if(local == local_clients.end())
+        {
+            auto entry = remote_clients.find(user);
+            if(entry == remote_clients.end())
+            {
+                re.setUsername(user);
+                re.setHops(info.entries[i].hops);
+                re.setUid(sender_uid);
+                remote_clients[user] = re;
+            }
+            else
+            {
+                if( info.entries[i].hops < entry->second.getHops() +1 )
+                {
+                    remote_clients[user].setHops(info.entries[i].hops);
+                    remote_clients[user].setUid(sender_uid);
+                }
+            }
+        }
+
+
+    }
 }
+
 
 void Server::update_local_list()
 {
     char beat = 1;
-    auto predicate = [](User *client){
+    auto predicate = [&, this](User *client){
         if(client)
         {
             if(client->isGone())
             {
                 Logger::log(client->getUsername() + " left");
+                if(client->getUsername().empty())
+                {
+                    this->removeServer(client->getUid());
+                }
             }
             return client->isGone();
         }
@@ -192,32 +225,21 @@ void Server::update_local_list()
     while(!stopped)
     {
         std::this_thread::sleep_for(ms(5000));
-
-        /*
-        for(std::vector<Client*>::iterator it = clients.begin(); it != clients.end(); )
-        {
-            if((*it)->isGone())
-            {
-                Logger::log((*it)->getUsername() + " left");
-                clients.erase(it);
-            }
-            else
-            {
-                it++;
-            }
-        }
-*/
         auto it_new_end =
-        std::remove_if(clients.begin(), clients.end(),predicate);
+                std::remove_if(local_clients.begin(), local_clients.end(),predicate);
 
-        clients.erase(it_new_end, clients.end());
+        local_clients.erase(it_new_end, local_clients.end());
+        sendControlInfo();
+
         std::this_thread::sleep_for(ms(5000));
 
-        std::for_each(clients.begin(), clients.end(),
+        // heartbeat signal
+        std::for_each(local_clients.begin(), local_clients.end(),
                       [&beat](User* client){
             if(write(client->getSocket(), &beat, 1) < 0)
             {
                 client->setGone();
+
             }
         });
 
@@ -271,7 +293,7 @@ void Server::hearbeat()
 NeighboorServer* Server::getServer(size_t pos)
 {
     std::lock_guard<std::mutex> lock(server_shield);
-    if(pos < clients.size())
+    if(pos < local_clients.size())
     {
         return servers.at(pos);
     }
@@ -279,39 +301,54 @@ NeighboorServer* Server::getServer(size_t pos)
 }
 
 
-void Server::removeServer(size_t pos)
+void Server::removeServer(int server_uid)
 {
     std::lock_guard<std::mutex> lock(server_shield);
-    if(pos < servers.size())
+//    auto predicate = [&, this](std::pair<std::string, RemoteEntry> entry){
+//        return entry.second.getUid() == server_uid;
+//    };
+    /*
+    auto it_new_end =
+            std::remove_if(this->remote_clients.begin(), this->remote_clients.end(),predicate);
+
+    remote_clients.erase(it_new_end, remote_clients.end());
+    */
+    for( auto it = remote_clients.begin(); it != remote_clients.end();)
     {
-        std::vector<NeighboorServer*>::iterator it = servers.begin() + pos;
-        servers.erase(it);
+        if(it->second.getUid() == server_uid)
+        {
+            it = remote_clients.erase(it);
+        }
+        {
+            it++;
+        }
     }
+
 }
 
 
 int Server::sendToClient(int client_uid, void *data, int n)
 {
 
-     int count = 0;
-     for(User *client : clients)
-     {
-         if(client->getUid() == client_uid)
-         {
-             count = write(client->getSocket(), data, n);
-             if(count < 0)
-             {
-                 perror("SendToClient : ");
-                 close(client->getSocket());
-             }
-             else if(count < n)
-             {
+    int count = 0;
+    for(User *client : local_clients)
+    {
+        if(client->getUid() == client_uid)
+        {
+            count = write(client->getSocket(), data, n);
+            if(count < 0)
+            {
+                perror("SendToClient : ");
+                close(client->getSocket());
+            }
+            else if(count < n)
+            {
                 Logger::log("SendToClient : Not all data could be sent");
-             }
-             break;
-         }
-     }
-     return count;
+            }
+            break;
+        }
+    }
+    return count;
 }
 
 void Server::client_handler(int socket_fd)
@@ -333,18 +370,18 @@ void Server::client_handler(int socket_fd)
             {
                 print_raw_data(buffer, count);
                 if(decode_and_process(buffer,
-                                   client.getUid()) == -1)
+                                      client.getUid()) == -1)
                 {
-                     client.setGone();
+                    client.setGone();
                 }
             }
         }
     }
-    auto it = std::find(clients.begin(), clients.end(),&client);
-    if(it != clients.end())
+    auto it = std::find(local_clients.begin(), local_clients.end(),&client);
+    if(it != local_clients.end())
     {
         Logger::log((*it)->getUsername() + " left");
-        clients.erase(it);
+        local_clients.erase(it);
     }
     close(socket_fd);
     Logger::log("leaving client handler ...");
@@ -361,7 +398,7 @@ int Server::decode_and_process(void *data, int sender_uid)
     {
     case LOGINOUT:
         log = Serialization::Serialize<LogInOut>::deserialize(data);
-         ret = process_loginout(log, sender_uid);
+        ret = process_loginout(log, sender_uid);
         break;
     case MSG:
         msg = Serialization::Serialize<Message>::deserialize(data);
@@ -372,7 +409,7 @@ int Server::decode_and_process(void *data, int sender_uid)
     case CONTROLINFO:
         ret = process_controlInfo_request(data, sender_uid);
 
-        break;        
+        break;
     }
     return ret;
 }
@@ -464,7 +501,7 @@ int Server::process_get_request(int sender_uid)
 {
     int ret = 0;
     std::vector<std::string> users;
-    for(User *client : clients)
+    for(User *client : local_clients)
     {
         if(!client->isGone())
             users.push_back(client->getUsername());
@@ -473,8 +510,8 @@ int Server::process_get_request(int sender_uid)
     void *data = Serialization::Serialize<ControlInfo>::serialize(info);
     int size =sizeof(Header) + (sizeof(Entry) * info.header.length);
     ret = write(getClient(sender_uid)->getSocket(),
-              data,
-              size);
+                data,
+                size);
     Logger::log("Userlist sent to " +
                 getClient(sender_uid)->getUsername());
     return ret;
@@ -501,6 +538,39 @@ int Server::process_controlInfo_request(void *data,int sender_uid)
     return ret;
 }
 
+void Server::sendControlInfo()
+{
+    auto users = getClientList();
+    auto info = create_controlInfo2(users);
+    int size = sizeof(Header) + 20 * users.size();
+    void *data = Serialization::Serialize<ControlInfo>::serialize(info);
+    for(User *user : local_clients)
+    {
+        if(user->getUsername().empty())
+        {
+           write(user->getSocket(), data, size);
+        }
+    }
+
+}
+
+std::vector<RemoteEntry> Server::getClientList() const
+{
+    std::vector<RemoteEntry> entries;
+    RemoteEntry re;
+    for(User *user : local_clients)
+    {
+        re.setUsername(user->getUsername());
+        re.setHops(0);
+        entries.push_back(re);
+    }
+    for(auto entry : remote_clients)
+    {
+        entries.push_back(entry.second);
+    }
+    return entries;
+}
+
 int Server::updateClient(const std::string &username, int uid)
 {
     Header header;
@@ -515,12 +585,23 @@ int Server::updateClient(const std::string &username, int uid)
     }
     else
     {
-       client = getClient(uid);
-       client->setUsername(username);
+        client = getClient(uid);
+        client->setUsername(username);
+
+
     }
     int count = write(getClient(uid)->getSocket(), (void*)&header, 4);
     if(count > 0)
+    {
         Logger::log(username + " logged in.");
+
+    }
+
+    if(header.flags == SYN | ACK)
+    {
+        sendControlInfo();
+    }
+
     client = nullptr;
     return count;
 }

@@ -18,5 +18,5 @@ set(INLCUDE_LIB_PATHS ${INCLUDE_LIB_PATHS} include ../common/include )
 
 add_executable(${PROJECT_NAME}  ${SERVER_SRCS})
 #target_link_libraries(common_shared)
-target_link_libraries(${PROJECT_NAME} ${PROJECT_LINK_LIBS})
+target_link_libraries(${PROJECT_NAME}  common_shared)
 #add_custom_target(server_headers SOURCES ${SERVER_HEADERS})

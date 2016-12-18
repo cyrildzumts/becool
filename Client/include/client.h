@@ -119,6 +119,8 @@ private:
     bool loggedIn;
     std::string username;
     bool quit;
+    bool stop_writting;
+    bool stop_reading;
     sockaddr *addr;
     socklen_t addrlen;
     addrinfo hints;

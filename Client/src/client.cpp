@@ -7,6 +7,8 @@ Client::Client(const std::string &server_ip, const std::string &port)
     Logger::log("Not implemented yet");
     quit =false;
     loggedIn =false;
+    stop_reading = false;
+    stop_writting = false;
     socket_fd =-1;
 
 }
@@ -16,6 +18,8 @@ Client::Client()
 
     quit =false;
     loggedIn =false;
+    stop_reading = false;
+    stop_writting = false;
     socket_fd =-1;
     usage =std::string
                 (
@@ -126,11 +130,17 @@ int Client::create_socket()
 }
 void Client::logout()
 {
-    quit = true;
+
     LogInOut log = create_loginout(username, false);
     void *data = Serialization::Serialize<LogInOut>::serialize(log);
     int size = STR_LEN + sizeof(Header);
     send_data(data, size);
+    while (!txd_data.empty()) {
+
+    }
+    quit = true;
+    stop_writting = true;
+    stop_reading = true;
 }
 
 int Client::login()
@@ -338,8 +348,8 @@ void Client::shell()
                             " by entering /help");
             }
         }
-
-        send_data(ptr, size);
+        if(ptr && size)
+            send_data(ptr, size);
         size = 0;
 
     }
@@ -440,13 +450,14 @@ void Client::read_task()
     int count = 0;
     char buffer[BUFFER_SIZE] = {0};
     char *ptr = nullptr;
-    while(!quit)
+    while(!(quit && stop_reading) )
     {
         count = read(socket_fd,buffer, BUFFER_SIZE );
         if(count < 0)
         {
             perror("Read Task: ");
             quit = true;
+            stop_reading = true;
             break;
         }
         else if(count == 1)
@@ -467,13 +478,14 @@ void Client::write_task()
 {
     std::pair<void*, int> entry;
 
-    while(!quit)
+    while(!(quit && stop_writting))
     {
         txd_data.wait_and_pop(entry);
         if(write(socket_fd, entry.first, entry.second) < 0)
         {
             perror("Write Task: ");
             quit = true;
+            stop_writting = true;
             break;
         }
     }

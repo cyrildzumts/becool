@@ -59,8 +59,9 @@ struct LogInOut
 };
 struct Entry
 {
-    int hops;
     char username[STR_LEN];
+    int hops;
+
 };
 
 struct ControlInfo

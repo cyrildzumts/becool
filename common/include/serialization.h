@@ -53,8 +53,9 @@ namespace Serialization
             char *data;
             data = new char[size+1];
             memset(data, 0, size+1 );
-            memcpy(data, (char*)&message, size - data_size);
-            memcpy(data + size - data_size,(char*) message.data, data_size);
+            //memcpy(data, (char*)&message, size);
+           memcpy(data, (char*)&message, size - data_size);
+           memcpy(data + size - data_size,(char*) message.data, data_size);
             return data;
         }
 
