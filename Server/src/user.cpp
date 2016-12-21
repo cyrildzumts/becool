@@ -7,6 +7,7 @@ User::User(int fd)
     setSocket(fd);
     connected = false;
     gone = false;
+    username = "";
 }
 void User::setSocket(int fd)
 {

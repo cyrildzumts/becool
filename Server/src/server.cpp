@@ -182,6 +182,7 @@ User* Server::getClient(int uid)
 
 void Server::update_userlist(const ControlInfo &info, int sender_uid)
 {
+    Logger::log(std::string(__PRETTY_FUNCTION__) + " new userlist received");
     std::string user;
     RemoteEntry re ;
     for(int i = 0; i < info.header.length; i++)
@@ -198,16 +199,16 @@ void Server::update_userlist(const ControlInfo &info, int sender_uid)
             if(entry == remote_clients.end())
             {
                 re.setUsername(user);
-                re.setHops(info.entries[i].hops);
+                re.setHops(info.entries[i].hops +1);
                 re.setUid(sender_uid);
                 remote_clients[user] = re;
                 user_list_changed = true;
             }
             else
             {
-                if( info.entries[i].hops < entry->second.getHops() +1 )
+                if( info.entries[i].hops < entry->second.getHops() )
                 {
-                    remote_clients[user].setHops(info.entries[i].hops);
+                    remote_clients[user].setHops(info.entries[i].hops +1);
                     remote_clients[user].setUid(sender_uid);
                 }
                 user_list_changed = false;
@@ -228,7 +229,7 @@ void Server::update_local_list()
             if(client->isGone())
             {
                 Logger::log(client->getUsername() + " left");
-                if(client->getUsername().empty())
+                if(client->getUsername() == "")
                 {
                     this->removeServer(client->getUid());
                 }
@@ -310,16 +311,19 @@ void Server::hearbeat()
 
 void Server::removeServer(int server_uid)
 {
-    std::lock_guard<std::mutex> lock(server_shield);
+    //std::lock_guard<std::mutex> lock(server_shield);
+    Logger::log(__PRETTY_FUNCTION__);
     for( auto it = remote_clients.begin(); it != remote_clients.end();)
     {
         if(it->second.getUid() == server_uid)
         {
+            Logger::log("user " + it->second.getUsername() + " removed");
             it = remote_clients.erase(it);
             user_list_changed = true;
         }
         else
         {
+            Logger::log("user " + it->second.getUsername() + " removed");
             it++;
         }
     }
@@ -380,7 +384,15 @@ void Server::client_handler(int socket_fd)
     auto it = std::find(local_clients.begin(), local_clients.end(),&client);
     if(it != local_clients.end())
     {
-        Logger::log(client.getUsername() + " left");
+        if(client.getUsername() == "")
+        {
+            Logger::log(" Server + " + std::to_string(client.getUid()) + " left");
+            removeServer(client.getUid());
+        }
+        else
+        {
+            Logger::log(client.getUsername() + " left");
+        }
         local_clients.erase(it);
         user_list_changed = true;
     }
@@ -405,7 +417,7 @@ int Server::decode_and_process(void *data, int sender_uid)
         msg = Serialization::Serialize<Message>::deserialize(data);
         ret = process_message(msg,data, header.header.length
                               + sizeof(Header)
-                              + (2*STR_LEN));
+                              + (2*STR_LEN), sender_uid);
         break;
     case CONTROLINFO:
         ret = process_controlInfo_request(data, sender_uid);
@@ -466,24 +478,23 @@ int Server::process_loginout(LogInOut &log, int sender_uid)
 }
 
 
-void Server::send_error_message(const Message &message, int count)
+void Server::send_error_message(const Message &message, int count, int sender_uid)
 {
     std::string str = std::string("user ") + std::string(message.receiver)
             + " not found on this server" ;
 
     count = 0;
     Logger::log(str);
-    int clt_uid = getClient(std::string(message.sender))->getUid();
     error_message = create_message(name,
                                    std::string(message.sender),
                                    str.c_str(), str.size());
     void * reply = Serialization::Serialize<Message>::serialize(error_message);
     count = (2 * STR_LEN) + str.size() + sizeof(Header);
-    sendToClient(clt_uid, reply, count);
+    sendToClient(sender_uid, reply, count);
 }
 
 int Server::process_message(const Message &message,
-                            void *data, int len)
+                            void *data, int len, int sender_uid)
 {
     int count = 0;
     int sock = -1;
@@ -501,7 +512,7 @@ int Server::process_message(const Message &message,
         auto entry = remote_clients.find(user);
         if(entry == remote_clients.end())
         {
-            send_error_message(message, count);
+            send_error_message(message, count, sender_uid);
         }
         else
         {
@@ -574,6 +585,7 @@ void Server::sendControlInfo()
 
 std::vector<RemoteEntry> Server::getClientList() const
 {
+    Logger::log(__PRETTY_FUNCTION__);
     std::vector<RemoteEntry> entries;
     RemoteEntry re;
     for(User *user : local_clients)

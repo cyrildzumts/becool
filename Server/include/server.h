@@ -116,7 +116,7 @@ private:
     void update_local_list();
     int process_loginout(LogInOut& log, int sender_uid);
     int process_message(const Message &message,
-                        void *data,int len);
+                        void *data,int len, int sender_uid);
 
     //TODO only send message to client with username
     // Do not include server( client without name
@@ -156,7 +156,7 @@ private:
     std::string name;
     std::string ip;
     bool user_list_changed;
-    void send_error_message(const Message &message, int count);
+    void send_error_message(const Message &message, int count, int sender_uid);
 };
 
 #endif // SERVER_H
