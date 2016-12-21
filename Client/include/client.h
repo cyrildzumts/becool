@@ -127,6 +127,7 @@ private:
     addrinfo *result;
     int flags;
     std::string port;
+    std::string ip;
     std::string usage;
     std::string head;
     Utils::Queue<std::pair<void*, int>> txd_data;

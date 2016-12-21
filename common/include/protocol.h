@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
+#include <arpa/inet.h>
 constexpr int VERSION = 1;
 
 // Type CONSTANT
@@ -95,5 +96,5 @@ Message build_message(const std::string &sender,
 
 void messageTest(const void *data);
 
-
+bool isAddressValid(const char *ip);
 #endif // PROTOCOL_H

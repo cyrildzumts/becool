@@ -70,3 +70,8 @@ ControlInfo create_controlInfo(const std::vector<std::string> &users)
 }
 
 
+
+bool isAddressValid(const char *ip)
+{
+    return INADDR_NONE != inet_addr(ip);
+}

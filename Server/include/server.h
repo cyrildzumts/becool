@@ -13,6 +13,7 @@ using ms = std::chrono::milliseconds;
 class Server
 {
 public:
+    Server(const std::string &ip, const std::string &port);
     Server();
     /**
      * @brief init initialize the socket this server will use.
@@ -122,6 +123,9 @@ private:
     int process_loginout(LogInOut& log, int sender_uid);
     int process_message(const Message &message,
                         void *data,int len);
+
+    //TODO only send message to client with username
+    // Do not include server( client without name
     int process_get_request(int sender_uid);
     int process_controlInfo_request(void *data, int sender_uid);
     void sendControlInfo();
@@ -152,6 +156,8 @@ private:
     bool stopped;
     Message error_message;
     std::string name;
+    std::string ip;
+    bool user_list_changed;
     void send_error_message(const Message &message, int count);
 };
 

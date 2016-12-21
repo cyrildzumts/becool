@@ -1,9 +1,15 @@
 #include "../include/server.h"
 
-Server::Server()
+Server::Server():Server(SERVER_IP, SERVER_PORT)
+{
+
+}
+
+Server::Server(const std::string &ip, const std::string &port): ip{ip}, port{port}
 {
     stopped = false;
     name = "Server";
+    user_list_changed = false;
 }
 
 void Server::init()
@@ -15,9 +21,8 @@ void Server::init()
         std::exit(EXIT_FAILURE);
     }
 
-    port = SERVER_PORT;
+    //port = SERVER_PORT;
     // getaddrinfo() to get a list of usable addresses
-    //std::string host = "localhost";
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_canonname = nullptr;
     hints.ai_addr = nullptr;
@@ -28,7 +33,7 @@ void Server::init()
     //hints.ai_protocol = 0;
     hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV  ;
     // we could provide a host instead of nullptr
-    if(getaddrinfo( nullptr,
+    if(getaddrinfo( ip.c_str(),
                     port.c_str(),
                     &hints,
                     &result) != 0)
@@ -71,6 +76,7 @@ int Server::create_socket()
                 rp->ai_addr,
                 rp->ai_addrlen) == 0)
         {
+            ip = rp->ai_addr->sa_data;
             break; // Success !
         }
         close(socket_fd);
@@ -88,8 +94,12 @@ int Server::create_socket()
         perror("listen: ");
         socket_fd = SOCKET_ERROR;
     }
+
     freeaddrinfo(rp);
     Logger::log("creating listening for this server ... done !");
+    Logger::log("Server Connexion Info : \n"
+                " ip address : " + ip + "\n"
+                " listening port : " + port + "\n");
     return socket_fd;
 }
 
@@ -175,11 +185,13 @@ void Server::update_userlist(const ControlInfo &info, int sender_uid)
     for(int i = 0; i < info.header.length; i++)
     {
         user = info.entries[i].username;
-        auto local = std::find_if(local_clients.begin(), local_clients.end(),[user](User *client){
+        auto local = std::find_if(local_clients.begin(), local_clients.end(),
+                                  [&user](User *client){
                 return client->getUsername() == user ;
-    } );
+        } );
         if(local == local_clients.end())
         {
+
             auto entry = remote_clients.find(user);
             if(entry == remote_clients.end())
             {
@@ -187,6 +199,7 @@ void Server::update_userlist(const ControlInfo &info, int sender_uid)
                 re.setHops(info.entries[i].hops);
                 re.setUid(sender_uid);
                 remote_clients[user] = re;
+                user_list_changed = true;
             }
             else
             {
@@ -195,6 +208,7 @@ void Server::update_userlist(const ControlInfo &info, int sender_uid)
                     remote_clients[user].setHops(info.entries[i].hops);
                     remote_clients[user].setUid(sender_uid);
                 }
+                user_list_changed = false;
             }
         }
 
@@ -224,14 +238,14 @@ void Server::update_local_list()
     Logger::log(std::string(__FUNCTION__) + " started ...");
     while(!stopped)
     {
-        std::this_thread::sleep_for(ms(5000));
+        std::this_thread::sleep_for(ms(30000));
         auto it_new_end =
                 std::remove_if(local_clients.begin(), local_clients.end(),predicate);
 
         local_clients.erase(it_new_end, local_clients.end());
         sendControlInfo();
 
-        std::this_thread::sleep_for(ms(5000));
+        //std::this_thread::sleep_for(ms(15000));
 
         // heartbeat signal
         std::for_each(local_clients.begin(), local_clients.end(),
@@ -304,21 +318,14 @@ NeighboorServer* Server::getServer(size_t pos)
 void Server::removeServer(int server_uid)
 {
     std::lock_guard<std::mutex> lock(server_shield);
-//    auto predicate = [&, this](std::pair<std::string, RemoteEntry> entry){
-//        return entry.second.getUid() == server_uid;
-//    };
-    /*
-    auto it_new_end =
-            std::remove_if(this->remote_clients.begin(), this->remote_clients.end(),predicate);
-
-    remote_clients.erase(it_new_end, remote_clients.end());
-    */
     for( auto it = remote_clients.begin(); it != remote_clients.end();)
     {
         if(it->second.getUid() == server_uid)
         {
             it = remote_clients.erase(it);
+            user_list_changed = true;
         }
+        else
         {
             it++;
         }
@@ -380,8 +387,9 @@ void Server::client_handler(int socket_fd)
     auto it = std::find(local_clients.begin(), local_clients.end(),&client);
     if(it != local_clients.end())
     {
-        Logger::log((*it)->getUsername() + " left");
+        Logger::log(client.getUsername() + " left");
         local_clients.erase(it);
+        user_list_changed = true;
     }
     close(socket_fd);
     Logger::log("leaving client handler ...");
@@ -474,36 +482,45 @@ void Server::send_error_message(const Message &message, int count)
 int Server::process_message(const Message &message,
                             void *data, int len)
 {
-    int count = 1;
-    User *client = getClient(std::string(message.receiver));
+    int count = 0;
+    int sock = -1;
+    std::string user = std::string(message.receiver);
+    User *client = getClient(user);
     if(client)
     {
-        count = write(client->getSocket(), data, len);
-        if(count < 0)
-        {
-            perror(__FUNCTION__);
-        }
-        else
-        {
-            count = 0;
-        }
+        sock = client->getSocket();
     }
     // the receiver is may be available from the the server
     else
     {
-        send_error_message(message, count);
+        // the receiver is not a local user. check if he is a remote
+        // user.
+        auto entry = remote_clients.find(user);
+        if(entry == remote_clients.end())
+        {
+            send_error_message(message, count);
+        }
+        else
+        {
+           client = getClient(entry->second.getUid());
+           if(client)
+              sock = client->getSocket();
+        }
     }
+    if(sock != -1)
+        count = write(sock, data, len);
     return count;
 }
 
-
+//TODO only send message to client with username
+// Do not include server( client without name
 int Server::process_get_request(int sender_uid)
 {
     int ret = 0;
     std::vector<std::string> users;
     for(User *client : local_clients)
     {
-        if(!client->isGone())
+        if(!client->isGone() && !client->getUsername().empty())
             users.push_back(client->getUsername());
     }
     ControlInfo info = create_controlInfo(users);
@@ -540,18 +557,21 @@ int Server::process_controlInfo_request(void *data,int sender_uid)
 
 void Server::sendControlInfo()
 {
-    auto users = getClientList();
-    auto info = create_controlInfo2(users);
-    int size = sizeof(Header) + 20 * users.size();
-    void *data = Serialization::Serialize<ControlInfo>::serialize(info);
-    for(User *user : local_clients)
+    if(user_list_changed)
     {
-        if(user->getUsername().empty())
+        auto users = getClientList();
+        auto info = create_controlInfo2(users);
+        int size = sizeof(Header) + 20 * users.size();
+        void *data = Serialization::Serialize<ControlInfo>::serialize(info);
+        for(User *user : local_clients)
         {
-           write(user->getSocket(), data, size);
+            if(user->getUsername().empty())
+            {
+               write(user->getSocket(), data, size);
+            }
         }
     }
-
+    user_list_changed = false;
 }
 
 std::vector<RemoteEntry> Server::getClientList() const
@@ -585,6 +605,7 @@ int Server::updateClient(const std::string &username, int uid)
     }
     else
     {
+        user_list_changed = true;
         client = getClient(uid);
         client->setUsername(username);
 

@@ -2,18 +2,12 @@
 
 Client *Handler::client = nullptr;
 
-Client::Client(const std::string &server_ip, const std::string &port)
+Client::Client() :Client(SERVER_IP, SERVER_PORT)
 {
-    Logger::log("Not implemented yet");
-    quit =false;
-    loggedIn =false;
-    stop_reading = false;
-    stop_writting = false;
-    socket_fd =-1;
 
 }
 
-Client::Client()
+Client::Client(const std::string &server_ip, const std::string &port):ip{server_ip}, port{port}
 {
 
     quit =false;
@@ -72,9 +66,9 @@ void Client::init()
         std::exit(EXIT_FAILURE);
     }
 
-    port = SERVER_PORT;
+    //port = SERVER_PORT;
     // getaddrinfo() to get a list of usable addresses
-    std::string host = SERVER_IP;
+    std::string host = ip;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_canonname = nullptr;
     hints.ai_addr = nullptr;
@@ -85,7 +79,7 @@ void Client::init()
     //hints.ai_protocol = 0;
     hints.ai_flags =  AI_NUMERICSERV ;
     // we could provide a host instead of nullptr
-    if(getaddrinfo(host.c_str(),
+    if(getaddrinfo(ip.c_str(),
                    port.c_str(),
                    &hints,
                    &result) != 0)
