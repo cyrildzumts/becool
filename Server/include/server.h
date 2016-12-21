@@ -42,13 +42,6 @@ public:
     int removeClient(User* client);
 
     /**
-     * @brief getServer query a neighbor Server
-     * @param pos the position of the desired server
-     * @return a pointer to the desired server on success
-     *         nullptr is return when pos is invalid
-     */
-    NeighboorServer *getServer(size_t pos);
-    /**
      * @brief removeServer
      * @param pos
      */
@@ -85,6 +78,7 @@ public:
      * @param sender_uid the uid of the sender.
      */
     int decode_and_process(void *data, int sender_uid);
+    void connectToServers();
 
 private:
     void print_raw_data(char *data, int size)const;
@@ -130,7 +124,11 @@ private:
     int process_controlInfo_request(void *data, int sender_uid);
     void sendControlInfo();
     std::vector<RemoteEntry> getClientList()const;
-    NeighboorServer* getNextServer()const;
+    void addServer();
+
+private:
+    void init_activ_socket(const std::string &server_ip, const std::string &server_port);
+    void create_activ_socket();
 
 private:
     int listening_socket;
@@ -138,7 +136,7 @@ private:
     std::timed_mutex client_shield;
     std::mutex server_shield;
     std::vector<User*> local_clients;
-    std::vector<NeighboorServer*> servers;
+    std::vector<NeighboorServer> servers;
     /**
      * @brief remote_users users available through another server
      * for look up this map structure is used :

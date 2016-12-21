@@ -10,6 +10,7 @@ Server::Server(const std::string &ip, const std::string &port): ip{ip}, port{por
     stopped = false;
     name = "Server";
     user_list_changed = false;
+
 }
 
 void Server::init()
@@ -96,6 +97,7 @@ int Server::create_socket()
     }
 
     freeaddrinfo(rp);
+    connectToServers();
     Logger::log("creating listening for this server ... done !");
     Logger::log("Server Connexion Info : \n"
                 " ip address : " + ip + "\n"
@@ -304,15 +306,6 @@ void Server::hearbeat()
     */
 }
 
-NeighboorServer* Server::getServer(size_t pos)
-{
-    std::lock_guard<std::mutex> lock(server_shield);
-    if(pos < local_clients.size())
-    {
-        return servers.at(pos);
-    }
-    return nullptr;
-}
 
 
 void Server::removeServer(int server_uid)
@@ -422,6 +415,16 @@ int Server::decode_and_process(void *data, int sender_uid)
     return ret;
 }
 
+void Server::connectToServers()
+{
+    addServer();
+    for(NeighboorServer server : servers)
+    {
+            init_activ_socket(server.host, server.port);
+            create_activ_socket();
+    }
+}
+
 void Server::print_raw_data(char *data, int size) const
 {
     Logger::log("Printing raw data");
@@ -517,15 +520,10 @@ int Server::process_message(const Message &message,
 int Server::process_get_request(int sender_uid)
 {
     int ret = 0;
-    std::vector<std::string> users;
-    for(User *client : local_clients)
-    {
-        if(!client->isGone() && !client->getUsername().empty())
-            users.push_back(client->getUsername());
-    }
-    ControlInfo info = create_controlInfo(users);
+    auto users = getClientList();
+    auto info = create_controlInfo2(users);
+    int size = sizeof(Header) + 20 * users.size();
     void *data = Serialization::Serialize<ControlInfo>::serialize(info);
-    int size =sizeof(Header) + (sizeof(Entry) * info.header.length);
     ret = write(getClient(sender_uid)->getSocket(),
                 data,
                 size);
@@ -589,6 +587,61 @@ std::vector<RemoteEntry> Server::getClientList() const
         entries.push_back(entry.second);
     }
     return entries;
+}
+
+void Server::addServer()
+{
+    servers.push_back({"141.22.83.97", "50000"});
+}
+
+void Server::init_activ_socket(const std::string &server_ip, const std::string &server_port)
+{
+    if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+    {
+        std::cerr << "signal" << std::endl;
+    }
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_canonname = nullptr;
+    hints.ai_addr = nullptr;
+    hints.ai_next = nullptr;
+    // Work with IPV4/6
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    //hints.ai_protocol = 0;
+    hints.ai_flags =  AI_NUMERICSERV ;
+    // we could provide a host instead of nullptr
+    if(getaddrinfo(server_ip.c_str(),
+                   server_port.c_str(),
+                   &hints,
+                   &result) != 0)
+    {
+        perror("getaddrinfo()");
+    }
+}
+
+void Server::create_activ_socket()
+{
+    addrinfo *rp;
+    int socket_fd = -1;
+    for( rp = result; rp != nullptr; rp = rp->ai_next)
+    {
+        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if(socket_fd == SOCKET_ERROR)
+        {
+            // on error we try the next address
+            continue;
+        }
+        Logger::log("socket created  ...");
+        if(connect(socket_fd,
+                   rp->ai_addr,
+                   rp->ai_addrlen) != SOCKET_ERROR)
+        {
+            std::thread worker{&Server::client_handler,this, socket_fd};
+            worker.detach();
+            break; // success
+        }
+        close(socket_fd);
+    }
 }
 
 int Server::updateClient(const std::string &username, int uid)

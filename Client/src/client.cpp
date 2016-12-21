@@ -68,7 +68,6 @@ void Client::init()
 
     //port = SERVER_PORT;
     // getaddrinfo() to get a list of usable addresses
-    std::string host = ip;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_canonname = nullptr;
     hints.ai_addr = nullptr;

@@ -49,7 +49,6 @@ struct NeighboorServer
 {
     std::string host;
     std::string port;
-    int sock_fd;
 };
 
 #endif // COMMON_H
