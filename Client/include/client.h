@@ -21,7 +21,8 @@ public:
     Client();
     ~Client();
 
-
+    int sctp_init();
+    int sctp_connect(int sock);
     void irq_handler(int irq);
     /**
      * @brief init initialize the socket this client uses.
@@ -123,6 +124,7 @@ private:
     bool stop_reading;
     sockaddr *addr;
     socklen_t addrlen;
+    struct sockaddr_in  sin;
     addrinfo hints;
     addrinfo *result;
     int flags;

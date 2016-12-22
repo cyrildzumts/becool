@@ -30,8 +30,9 @@ void Server::init()
     hints.ai_next = nullptr;
     // Work with IPV4/6
     hints.ai_family = AF_UNSPEC;
+    // One to One Style
     hints.ai_socktype = SOCK_STREAM;
-    //hints.ai_protocol = 0;
+    hints.ai_protocol = IPPROTO_SCTP;
     hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV  ;
     // we could provide a host instead of nullptr
     if(getaddrinfo( ip.c_str(),
@@ -101,7 +102,7 @@ int Server::create_socket()
     Logger::log("creating listening for this server ... done !");
     Logger::log("Server Connexion Info : \n"
                 " ip address : " + ip + "\n"
-                " listening port : " + port + "\n");
+                                        " listening port : " + port + "\n");
     return socket_fd;
 }
 
@@ -191,7 +192,7 @@ void Server::update_userlist(const ControlInfo &info, int sender_uid)
         auto local = std::find_if(local_clients.begin(), local_clients.end(),
                                   [&user](User *client){
                 return client->getUsername() == user ;
-        } );
+    } );
         if(local == local_clients.end())
         {
 
@@ -217,11 +218,13 @@ void Server::update_userlist(const ControlInfo &info, int sender_uid)
 
 
     }
+    print_userlist();
 }
 
 
 void Server::update_local_list()
 {
+    /*
     char beat = 1;
     auto predicate = [&, this](User *client){
         if(client)
@@ -261,6 +264,7 @@ void Server::update_local_list()
         });
 
     }
+    */
 
 }
 
@@ -277,34 +281,6 @@ int Server::removeClient(User *client)
     }
 
     return ret;
-}
-
-void Server::hearbeat()
-{
-    /*
-    Logger::log("Heartbeat for user uid "
-                " started... ");
-    char ok = 0;
-    int ret = 0;
-    Client *client = getClient(client_uid);
-    if(client)
-    {
-        int fd = client->getSocket();
-        while(!stopped)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            if(write(fd, &ok, 1) < 0)
-            {
-                ret = -1;
-                client->setConnected(false);
-                client->setGone();
-                Logger::log(client->getUsername() + " is gone");
-                break;
-
-            }
-        }
-    }
-    */
 }
 
 
@@ -335,23 +311,23 @@ int Server::sendToClient(int client_uid, void *data, int n)
 {
 
     int count = 0;
-    for(User *client : local_clients)
+    User *client = getClient(client_uid);
+    if(client)
     {
-        if(client->getUid() == client_uid)
+        count = write(client->getSocket(), data, n);
+        if(count < 0)
         {
-            count = write(client->getSocket(), data, n);
-            if(count < 0)
-            {
-                perror("SendToClient : ");
-                close(client->getSocket());
-            }
-            else if(count < n)
-            {
-                Logger::log("SendToClient : Not all data could be sent");
-            }
-            break;
+            perror("SendToClient : ");
+            client->setGone();
+
+            close(client->getSocket());
+        }
+        else if(count < n)
+        {
+            Logger::log("SendToClient : Not all data could be sent");
         }
     }
+
     return count;
 }
 
@@ -432,8 +408,8 @@ void Server::connectToServers()
     addServer();
     for(NeighboorServer server : servers)
     {
-            init_activ_socket(server.host, server.port);
-            create_activ_socket();
+        init_activ_socket(server.host, server.port);
+        create_activ_socket();
     }
 }
 
@@ -481,7 +457,7 @@ int Server::process_loginout(LogInOut &log, int sender_uid)
 void Server::send_error_message(const Message &message, int count, int sender_uid)
 {
     std::string str = std::string("user ") + std::string(message.receiver)
-            + " not found on this server" ;
+            + " not found on this server";
 
     count = 0;
     Logger::log(str);
@@ -516,9 +492,9 @@ int Server::process_message(const Message &message,
         }
         else
         {
-           client = getClient(entry->second.getUid());
-           if(client)
-              sock = client->getSocket();
+            client = getClient(entry->second.getUid());
+            if(client)
+                sock = client->getSocket();
         }
     }
     if(sock != -1)
@@ -576,7 +552,7 @@ void Server::sendControlInfo()
         {
             if(user->getUsername().empty())
             {
-               write(user->getSocket(), data, size);
+                write(user->getSocket(), data, size);
             }
         }
     }
@@ -603,7 +579,7 @@ std::vector<RemoteEntry> Server::getClientList() const
 
 void Server::addServer()
 {
-    servers.push_back({"141.22.83.97", "50000"});
+    servers.push_back({"127.0.0.1", "50000"});
 }
 
 void Server::init_activ_socket(const std::string &server_ip, const std::string &server_port)
@@ -654,6 +630,98 @@ void Server::create_activ_socket()
         }
         close(socket_fd);
     }
+}
+
+void Server::print_userlist()
+{
+    auto users = getClientList();
+    for(auto user : users)
+    {
+        Logger::log("User : " + user.getUsername());
+    }
+}
+
+int Server::sctp_init()
+{
+    int    listening_sock;
+    int    onoff = 1;
+    struct sockaddr_in  sin[1];
+    struct sctp_initmsg  initmsg;
+
+    // One to One Style
+    if ((listening_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP)) == -1) {
+        perror("socket");
+        exit(1);
+    }
+
+    sin->sin_family = AF_INET;
+    sin->sin_port = htons(9012);
+    sin->sin_addr.s_addr = INADDR_ANY;
+    if (bind(listening_sock, (struct sockaddr *)sin, sizeof (*sin)) == -1) {
+        perror("bind");
+        exit(1);
+    }
+
+    if (listen(listening_sock, 1) == -1) {
+        perror("listen");
+        exit(1);
+    }
+
+    (void) memset(&initmsg, 0, sizeof(struct sctp_initmsg));
+    initmsg.sinit_num_ostreams = 1;
+    initmsg.sinit_max_instreams = 0;
+    initmsg.sinit_max_attempts = 1;
+    if (setsockopt(listening_sock, IPPROTO_SCTP, SCTP_INITMSG, &initmsg,
+                   sizeof(struct sctp_initmsg)) < 0) {
+        perror("SCTP_INITMSG");
+        exit (1);
+    }
+
+    /* Events to be notified for */
+
+    return listening_sock;
+}
+
+int Server::sctp_accept(int listening_sock)
+{
+    // hack : header not available
+    Logger::log("Listen Success");
+    int SOL_SCTP = 132;
+    struct sctp_paddrparams heartbeat;
+    struct sctp_event_subscribe events;
+    (void) memset(&events, 0, sizeof (events));
+    events.sctp_shutdown_event = 1;
+    heartbeat.spp_flags = SPP_HB_ENABLE;
+    heartbeat.spp_hbinterval = 5000;
+    heartbeat.spp_pathmaxrxt = 1;
+    /*Set Heartbeats*/
+        if(setsockopt(listening_sock, SOL_SCTP, SCTP_PEER_ADDR_PARAMS ,
+                      &heartbeat, sizeof(heartbeat)) != 0)
+            perror("setsockopt");
+        else
+            Logger::log("HB  Success");
+
+    if (setsockopt(listening_sock, IPPROTO_SCTP, SCTP_EVENTS, &events,
+                   sizeof (events)) < 0) {
+        perror("setsockopt SCTP_EVENTS");
+        exit(1);
+    }
+
+
+    /* Wait for new associations */
+    int flags;
+    for (;;) {
+
+        //Logger::log("New connexion ...");
+
+        /* Echo back any and all data */
+        mirror(0);
+    }
+}
+
+void Server::mirror(int sock)
+{
+
 }
 
 int Server::updateClient(const std::string &username, int uid)

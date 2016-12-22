@@ -42,6 +42,40 @@ Client::~Client()
 
 }
 
+int Client::sctp_init()
+{
+    int    sock;
+    struct sctp_initmsg  initmsg;
+    initmsg.sinit_num_ostreams = 1;
+    initmsg.sinit_max_instreams = 0;
+    initmsg.sinit_max_attempts = 1;
+
+    // One to One Style
+    if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP)) == -1) {
+        perror("socket");
+        exit(1);
+    }
+    setsockopt(sock, IPPROTO_SCTP, SCTP_INITMSG, &initmsg,
+                   sizeof(initmsg));
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(50000);
+    sin.sin_addr.s_addr = inet_addr(ip.c_str());
+
+
+    /* Events to be notified for */
+
+    return sock;
+}
+
+int Client::sctp_connect(int sock)
+{
+    connect(sock, (struct sockaddr*)&sin, sizeof(sin));
+    Logger::log("Successfully connected to server");
+    std::this_thread::sleep_for(std::chrono::minutes(1));
+    close(sock);
+
+}
+
 void Client::irq_handler(int irq)
 {
     if(irq == SIGINT)
@@ -68,6 +102,8 @@ void Client::init()
 
     //port = SERVER_PORT;
     // getaddrinfo() to get a list of usable addresses
+    struct sockaddr_in  sin[1];
+    struct sctp_initmsg  initmsg;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_canonname = nullptr;
     hints.ai_addr = nullptr;
@@ -75,9 +111,14 @@ void Client::init()
     // Work with IPV4/6
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    //hints.ai_protocol = 0;
+    hints.ai_protocol = IPPROTO_SCTP;
     hints.ai_flags =  AI_NUMERICSERV ;
+
+
+
+
     // we could provide a host instead of nullptr
+    /*
     if(getaddrinfo(ip.c_str(),
                    port.c_str(),
                    &hints,
@@ -85,7 +126,7 @@ void Client::init()
     {
         perror("getaddrinfo()");
         std::exit(EXIT_FAILURE);
-    }
+    }*/
     Logger::log("Client initialization ... done");
 }
 

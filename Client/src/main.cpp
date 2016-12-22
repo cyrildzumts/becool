@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     Client client(ip, port);
-    client.init();
-    client.start();
+    int sock = client.sctp_init();
+    client.sctp_connect(sock);
     return 0;
 }

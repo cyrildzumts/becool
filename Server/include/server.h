@@ -79,6 +79,8 @@ public:
      */
     int decode_and_process(void *data, int sender_uid);
     void connectToServers();
+    int sctp_init();
+    int sctp_accept(int listening_sock);
 
 private:
     void print_raw_data(char *data, int size)const;
@@ -126,10 +128,14 @@ private:
     std::vector<RemoteEntry> getClientList()const;
     void addServer();
 
+
 private:
     void init_activ_socket(const std::string &server_ip, const std::string &server_port);
     void create_activ_socket();
+    void print_userlist();
 
+
+    void mirror(int sock);
 private:
     int listening_socket;
     //std::mutex client_shield;
