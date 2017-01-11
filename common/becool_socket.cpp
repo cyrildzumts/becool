@@ -7,6 +7,42 @@ int Socket::getSocket()const
     return socket_fd;
 }
 
+void Socket::sock_init(bool server)
+{
+    Logger::log("Socket initialization ...");
+    if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+    {
+        std::cerr << "signal" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+    memset(&self_addr, 0,sizeof(sockaddr_in));
+    memset(&peer_addr, 0,sizeof(sockaddr_in));
+    addrlen = sizeof(peer_addr);
+    //port = SERVER_PORT;
+    // getaddrinfo() to get a list of usable addresses
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_canonname = nullptr;
+    hints.ai_addr = nullptr;
+    hints.ai_next = nullptr;
+    // Work with IPV4/6
+
+
+    hints.ai_family = AF_UNSPEC;
+    // One to One Style
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = 0;
+    hints.ai_flags = server ? (AI_PASSIVE | AI_NUMERICSERV ) : AI_NUMERICSERV ;
+    // we could provide a host instead of nullptr
+    if(getaddrinfo( ip.c_str(),
+                    port.c_str(),
+                    &hints,
+                    &result) != 0)
+    {
+        perror("getaddrinfo()");
+        std::exit(EXIT_FAILURE);
+    }
+}
+
 int Socket::sock_create()
 {
     socket_fd = socket(hints.ai_family,
@@ -15,6 +51,7 @@ int Socket::sock_create()
     if(socket_fd == SOCKET_ERROR)
     {
         perror("sock_create()");
+        exit(EXIT_FAILURE);
     }
     return socket_fd;
 }
@@ -22,37 +59,105 @@ int Socket::sock_create()
 
 int Socket::sock_bind()
 {
-    if(setsockopt(socket_fd, SOL_SOCKET,
-                  SO_REUSEADDR,&optval,
-                  sizeof(optval)) == SOCKET_ERROR)
+    Logger::log("binding socket to ip address ...");
+    addrinfo *rp;
+    int optval = 1;
+    for( rp = result; rp != nullptr; rp = rp->ai_next)
     {
-        perror("setsockopt");
-        return SOCKET_ERROR;
+        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if(socket_fd == SOCKET_ERROR)
+        {
+            // on error we try the next address
+            continue;
+        }
+        if(setsockopt(socket_fd, SOL_SOCKET,
+                      SO_REUSEADDR,&optval,
+                      sizeof(optval)) == SOCKET_ERROR)
+        {
+            perror("setsockopt");
+            return SOCKET_ERROR;
+        }
+        if(bind(socket_fd,
+                rp->ai_addr,
+                rp->ai_addrlen) == 0)
+        {
+             ip = rp->ai_addr->sa_data;
+             Logger::log("binding socket to ip address ... done !");
+            break; // Success !
+        }
+        close(socket_fd);
     }
-    if(bind(socket_fd,
-            hints.ai_addr,
-            result->ai_addrlen) == 0)
+    if(rp == nullptr) // could not bind socket to any address of the list
     {
-        ip = result->ai_addr->sa_data;
-        break; // Success !
+        std::cerr << "Fatal Error : couldn't find a suitable address" << std::endl;
+        socket_fd = SOCKET_ERROR;
     }
+
+
+
+    freeaddrinfo(rp);
+    Logger::log("creating listening for this server ... done !");
+    Logger::log("Server Connexion Info : \n"
+                " ip address : " + ip + "\n"
+                                        " listening port : " + port + "\n");
+    return socket_fd;
 }
 
 int Socket::sock_listen()
 {
-    return listen(socket_fd, BACKLOG);
+
+    // enable socket connexions.
+    // make it a socket server
+    if(listen(socket_fd, BACKLOG) == SOCKET_ERROR)
+    {
+        perror("listen: ");
+        socket_fd = SOCKET_ERROR;
+    }
+    Logger::log("creating listening socket for this server ... done !");
+    return socket_fd;
 }
 
 int Socket::sock_connect()
 {
-    return connect(socket_fd,
-                   result->ai_addr,
-                   result->ai_addrlen);
+    Logger::log("socket creation  ...");
+    addrinfo *rp;
+    for( rp = result; rp != nullptr; rp = rp->ai_next)
+    {
+        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if(socket_fd == SOCKET_ERROR)
+        {
+            // on error we try the next address
+            continue;
+        }
+        Logger::log("socket created  ...");
+        if(connect(socket_fd,
+                   rp->ai_addr,
+                   rp->ai_addrlen) != SOCKET_ERROR)
+        {
+            Logger::log("connexion etablished ...");
+            break; // success
+        }
+        close(socket_fd);
+    }
+    if(rp == nullptr) // could not bind socket to any address of the list
+    {
+        std::cerr << "Fatal Error : couldn't find a suitable address" << std::endl;
+        socket_fd = SOCKET_ERROR;
+        exit(EXIT_FAILURE);
+    }
+
+    freeaddrinfo(rp);
+    return socket_fd;
+//    return connect(socket_fd,
+//                   (sockaddr*)&peer_addr,
+//                   sizeof(addrlen));
 }
 
 int Socket::sock_accept()
 {
+    //sockaddr_in peer_addr
 
+    return accept(socket_fd, (sockaddr*)&peer_addr, &addrlen);
 }
 
 void Socket::sock_close()
@@ -60,23 +165,23 @@ void Socket::sock_close()
     close(socket_fd);
 }
 
-int Socket::sock_send(int to_fd, char *buffer, size_t count)
+int Socket::sock_send( char *buffer, size_t count)
 {
     int ret = -1;
     if(buffer)
     {
-        ret = write(to_fd, buffer, count);
+        ret = write(socket_fd, buffer, count);
     }
     return ret;
 }
 
 
-int Socket::sock_read(int from_fd, char *buffer, size_t count)
+int Socket::sock_read( char *buffer, size_t count)
 {
     int ret = -1;
     if(buffer)
     {
-        ret = read(from_fd, buffer, count);
+        ret = read(socket_fd, buffer, count);
     }
     return ret;
 }
@@ -85,12 +190,18 @@ int Socket::sock_read(int from_fd, char *buffer, size_t count)
 /*****************************************************************
  * TCPSocket Implementation
  * **************************************************************/
-TCPSocket::TCPSocket(const std::string &ip, const std::string &port): ip{ip}, port{port}
+TCPSocket::TCPSocket(const std::string &ip, const std::string &port)
 {
-
+    this->ip = ip;
+    this->port = port;
 }
 
-void TCPSocket::sock_init()
+TCPSocket::~TCPSocket()
+{
+    close(socket_fd);
+}
+
+void TCPSocket::sock_init(bool server)
 {
     Logger::log("Socket initialization ...");
     if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
@@ -98,7 +209,9 @@ void TCPSocket::sock_init()
         std::cerr << "signal" << std::endl;
         std::exit(EXIT_FAILURE);
     }
-
+    memset(&self_addr, 0,sizeof(sockaddr_in));
+    memset(&peer_addr, 0,sizeof(sockaddr_in));
+    addrlen = sizeof(peer_addr);
     //port = SERVER_PORT;
     // getaddrinfo() to get a list of usable addresses
     memset(&hints, 0, sizeof(struct addrinfo));
@@ -106,11 +219,13 @@ void TCPSocket::sock_init()
     hints.ai_addr = nullptr;
     hints.ai_next = nullptr;
     // Work with IPV4/6
+
+
     hints.ai_family = AF_UNSPEC;
     // One to One Style
     hints.ai_socktype = SOCK_STREAM;
-    //hints.ai_protocol = 0;
-    hints.ai_flags =  AI_PASSIVE | AI_NUMERICSERV  ;
+    hints.ai_protocol = 0;
+    hints.ai_flags = server ? (AI_PASSIVE | AI_NUMERICSERV ) : AI_NUMERICSERV ;
     // we could provide a host instead of nullptr
     if(getaddrinfo( ip.c_str(),
                     port.c_str(),
@@ -124,41 +239,106 @@ void TCPSocket::sock_init()
     Logger::log("Socket initialization ... done !");
 }
 
-int TCPSocket::sock_accept()
-{
-    socklen_t addrlen;
-    sockaddr_storage client_addr;
-    //int client_socket_fd;
-    addrlen = sizeof(sockaddr_storage);
-    char host[NI_MAXHOST];
-    char service[NI_MAXSERV];
-    int *client_socket_fd = nullptr;
-    while(true)
-    {
-        client_socket_fd = new int;
-        *client_socket_fd = accept(socket_fd,
-                                   (sockaddr*)&client_addr,
-                                   &addrlen);
-        if(*client_socket_fd == -1)
-        {
-            perror("accept error");
-            continue;
-        }
-        // process the client request hier
-    }
-}
+// TODO Pass a function object to sock_accept
+// so that it will call that function
+// on a new connection
+//int TCPSocket::sock_accept()
+//{
+
+//}
 
 
 /*****************************************************************
  * SCTPSocket Implementation
  * **************************************************************/
-void SCTPSocket::sock_init()
+SCTPSocket::SCTPSocket(const std::string &ip, const std::string &port)
+{
+    this->ip = ip;
+    this->port = port;
+}
+
+SCTPSocket::~SCTPSocket()
+{
+    close(socket_fd);
+}
+
+
+void SCTPSocket::sock_init(bool server)
 {
 
-    sock_create();
+    Logger::log("Socket initialization ...");
+    if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+    {
+        std::cerr << "signal" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+    memset(&self_addr, 0,sizeof(sockaddr_in));
+    memset(&peer_addr, 0,sizeof(sockaddr_in));
+    addrlen = sizeof(peer_addr);
+    //port = SERVER_PORT;
+    // getaddrinfo() to get a list of usable addresses
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_canonname = nullptr;
+    hints.ai_addr = nullptr;
+    hints.ai_next = nullptr;
+    // Work with IPV4/6
+
+
+    hints.ai_family = AF_UNSPEC;
+    // One to One Style
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_SCTP;
+    hints.ai_flags = server ? (AI_PASSIVE | AI_NUMERICSERV ) : AI_NUMERICSERV ;
+    // we could provide a host instead of nullptr
+    if(getaddrinfo( ip.c_str(),
+                    port.c_str(),
+                    &hints,
+                    &result) != 0)
+    {
+        perror("getaddrinfo()");
+        std::exit(EXIT_FAILURE);
+    }
+
+}
+
+int SCTPSocket::sock_create()
+{
+    socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);
+    if (socket_fd == -1)
+    {
+        perror("sctp::sock_create()");
+        exit(EXIT_FAILURE);
+    }
+    return socket_fd;
+}
+
+
+
+int SCTPSocket::sock_send(char *buffer, size_t count)
+{
+    return sctp_sendmsg(socket_fd, buffer, count, nullptr, 0,0,0,0,0,0);
+}
+
+int SCTPSocket::sock_read(char *buffer, size_t count)
+{
+    int flags = 0;
+    int ret = sctp_recvmsg(socket_fd,
+                           buffer,
+                           count,
+                           nullptr,
+                           0,
+                           &sndrcvinfo,
+                           &flags);
+    return ret;
+}
+
+void SCTPSocket::sctp_init()
+{
+    Logger::log("SCTP Socket initialization ... ");
+    socklen_t len = sizeof(sctp_initmsg);
     (void) memset(&initmsg, 0, sizeof(struct sctp_initmsg));
     getsockopt(socket_fd, IPPROTO_SCTP, SCTP_INITMSG,
-               &initmsg, sizeof(sctp_initmsg));
+               &initmsg, &len );
     initmsg.sinit_max_attempts = 1;
     initmsg.sinit_max_instreams = 0;
     initmsg.sinit_num_ostreams = 1;
@@ -173,8 +353,9 @@ void SCTPSocket::sock_init()
         exit (1);
     }
 
+    len = sizeof(sctp_event_subscribe);
     getsockopt(socket_fd, IPPROTO_SCTP, SCTP_EVENTS,
-               &events, sizeof(sctp_event_subscribe));
+               &events, &len);
     events.sctp_shutdown_event = 1;
 
 
@@ -188,8 +369,9 @@ void SCTPSocket::sock_init()
         exit (1);
     }
 
+    len = sizeof(sctp_paddrparams);
     getsockopt(socket_fd, IPPROTO_SCTP, SCTP_PEER_ADDR_PARAMS,
-               &heartbeat, sizeof(sctp_paddrparams));
+               &heartbeat, &len);
     heartbeat.spp_flags = SPP_HB_ENABLE;
     heartbeat.spp_hbinterval = 5000;
     heartbeat.spp_pathmaxrxt = 1;
@@ -203,39 +385,55 @@ void SCTPSocket::sock_init()
         perror("SCTP_PEER_ADDR_PARAMS");
         exit (1);
     }
-
-    sockaddr.sin_family = AF_INET;
-    sockaddr.sin_port = htons(9012);
-    sockaddr.sin_addr.s_addr = inet_addr(ip.c_str());
-
-
-
+     Logger::log("SCTP Socket initialization ... done!");
 }
 
-int SCTPSocket::sock_create()
+
+int SCTPSocket::sock_bind()
 {
-    socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);
+    Logger::log("binding socket to ip address ...");
+    addrinfo *rp;
+    int optval = 1;
+    for( rp = result; rp != nullptr; rp = rp->ai_next)
+    {
+        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if(socket_fd == SOCKET_ERROR)
+        {
+            // on error we try the next address
+            continue;
+        }
+        if(setsockopt(socket_fd, SOL_SOCKET,
+                      SO_REUSEADDR,&optval,
+                      sizeof(optval)) == SOCKET_ERROR)
+        {
+            perror("setsockopt");
+            return SOCKET_ERROR;
+        }
+        sctp_init();
+        if(bind(socket_fd,
+                rp->ai_addr,
+                rp->ai_addrlen) == 0)
+        {
+             ip = rp->ai_addr->sa_data;
+             Logger::log("binding socket to ip address ... done !");
+            break; // Success !
+        }
+        close(socket_fd);
+        this->sock_create();
+    }
+    if(rp == nullptr) // could not bind socket to any address of the list
+    {
+        std::cerr << "Fatal Error : couldn't find a suitable address" << std::endl;
+        socket_fd = SOCKET_ERROR;
+    }
+
+
+
+    freeaddrinfo(rp);
+    Logger::log("creating listening for this server ... done !");
+    Logger::log("Server Connexion Info : \n"
+                " ip address : " + ip + "\n"
+                                        " listening port : " + port + "\n");
     return socket_fd;
 }
 
-int SCTPSocket::sock_accept()
-{
-}
-
-
-int SCTPSocket::sock_send(int to_fd, char *buffer, size_t count)
-{
-}
-
-int SCTPSocket::sock_read(int from_fd, char *buffer, size_t count)
-{
-    int flags = 0;
-    int ret = sctp_recvmsg(from_fd,
-                           buffer,
-                           count,
-                           nullptr,
-                           0,
-                           &sndrcvinfo,
-                           &flags);
-    return ret;
-}

@@ -10,7 +10,7 @@ set (PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 set (PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(PROJECT_LINK_LIBS  "${LIBRARY_OUTPUT_PATH}/libcommon.a")
-link_directories(../lib)
+
 
 FILE(GLOB_RECURSE CLIENT_SRCS "include/*.h" "src/*.cpp")
 include_directories(include ../common/inclue)
@@ -19,6 +19,6 @@ set(INLCUDE_LIB_PATHS ${INCLUDE_LIB_PATHS} include ../common/include )
 
 
 add_executable(${PROJECT_NAME}  ${CLIENT_SRCS})
-target_link_libraries(${PROJECT_NAME} ${PROJECT_LINK_LIBS})
+target_link_libraries(${PROJECT_NAME}  common_shared)
 
 #add_custom_target(server_headers SOURCES ${SERVER_HEADERS})

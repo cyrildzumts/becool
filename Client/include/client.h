@@ -8,7 +8,7 @@
 #include "serialization.h"
 #include "queue.h"
 #include "inputargreader.h"
-
+#include "becool_socket.h"
 using namespace std::placeholders;
 
 class Client
@@ -20,9 +20,6 @@ public:
     Client(const std::string &server_ip, const std::string &port);
     Client();
     ~Client();
-
-    int sctp_init();
-    int sctp_connect(int sock);
     void irq_handler(int irq);
     /**
      * @brief init initialize the socket this client uses.
@@ -35,7 +32,7 @@ public:
      * login registers the client to the server.
      *
      */
-    void start(bool testMode = false);
+    void start();
     /**
      * @brief create_socket creates and connects this client to the
      * server
@@ -116,6 +113,7 @@ private:
     void show_userlist()const;
 
 private:
+    Socket *sock_client;
     int socket_fd;
     bool loggedIn;
     std::string username;

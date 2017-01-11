@@ -1,12 +1,13 @@
 #ifndef SERVER_H
 #define SERVER_H
-#include "common.h"
+#include "becool_socket.h"
 #include "user.h"
 #include "remoteentry.h"
 #include "serialization.h"
 #include "logger.h"
 #include <iterator>
 #include <algorithm>
+#
 
 
 using ms = std::chrono::milliseconds;
@@ -79,8 +80,8 @@ public:
      */
     int decode_and_process(void *data, int sender_uid);
     void connectToServers();
-    int sctp_init();
-    int sctp_accept(int listening_sock);
+    //int sctp_init();
+    //int sctp_accept(int listening_sock);
 
 private:
     void print_raw_data(char *data, int size)const;
@@ -137,6 +138,7 @@ private:
 
     void mirror(int sock);
 private:
+    Socket *sock;
     int listening_socket;
     //std::mutex client_shield;
     std::timed_mutex client_shield;
@@ -162,6 +164,7 @@ private:
     std::string name;
     std::string ip;
     bool user_list_changed;
+
     void send_error_message(const Message &message, int count, int sender_uid);
 };
 

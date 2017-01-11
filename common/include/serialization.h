@@ -82,7 +82,9 @@ namespace Serialization
             char *data;
             data = new char[size];
             memset(data, 0, STR_LEN);
-            memcpy(data, &log, size);
+            memcpy(data, &log.header, sizeof(Header));
+
+            memcpy(data + sizeof(Header), &log.username, STR_LEN);
 
             return data;
         }
@@ -92,6 +94,7 @@ namespace Serialization
 
             LogInOut log;
             char *ptr = (char*)data;
+            // ptr[3] = LogInOut.header.length
             int size = ptr[3] + sizeof(Header);
             memset(log.username, 0, STR_LEN);
             memcpy(&log.header,
@@ -100,7 +103,7 @@ namespace Serialization
 
             memcpy(&log.username,
                    (char*)data +sizeof(Header),
-                   size );
+                   STR_LEN );
             ptr = nullptr;
             return log;
         }

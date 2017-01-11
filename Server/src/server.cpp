@@ -10,100 +10,107 @@ Server::Server(const std::string &ip, const std::string &port): ip{ip}, port{por
     stopped = false;
     name = "Server";
     user_list_changed = false;
+    sock = new TCPSocket(ip, port);
+    //sock = new SCTPSocket(ip, port);
 
 }
 
 void Server::init()
 {
-    Logger::log("Server initializing ...");
-    if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
-    {
-        std::cerr << "signal" << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
+//    Logger::log("Server initializing ...");
+//    if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+//    {
+//        std::cerr << "signal" << std::endl;
+//        std::exit(EXIT_FAILURE);
+//    }
 
-    //port = SERVER_PORT;
-    // getaddrinfo() to get a list of usable addresses
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_canonname = nullptr;
-    hints.ai_addr = nullptr;
-    hints.ai_next = nullptr;
-    // Work with IPV4/6
-    hints.ai_family = AF_UNSPEC;
-    // One to One Style
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_SCTP;
-    hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV  ;
-    // we could provide a host instead of nullptr
-    if(getaddrinfo( ip.c_str(),
-                    port.c_str(),
-                    &hints,
-                    &result) != 0)
-    {
-        perror("getaddrinfo()");
-        std::exit(EXIT_FAILURE);
-    }
-    listening_socket = create_socket();
-    if(listening_socket < 0)
-    {
-        std::cerr << " a server socket couldn't be created."
-                  << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    Logger::log("Server initializing ... done !");
+//    //port = SERVER_PORT;
+//    // getaddrinfo() to get a list of usable addresses
+//    memset(&hints, 0, sizeof(struct addrinfo));
+//    hints.ai_canonname = nullptr;
+//    hints.ai_addr = nullptr;
+//    hints.ai_next = nullptr;
+//    // Work with IPV4/6
+//    hints.ai_family = AF_UNSPEC;
+//    // One to One Style
+//    hints.ai_socktype = SOCK_STREAM;
+//    hints.ai_protocol = IPPROTO_SCTP;
+//    hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV  ;
+//    // we could provide a host instead of nullptr
+//    if(getaddrinfo( ip.c_str(),
+//                    port.c_str(),
+//                    &hints,
+//                    &result) != 0)
+//    {
+//        perror("getaddrinfo()");
+//        std::exit(EXIT_FAILURE);
+//    }
+//    listening_socket = create_socket();
+//    if(listening_socket < 0)
+//    {
+//        std::cerr << " a server socket couldn't be created."
+//                  << std::endl;
+//        exit(EXIT_FAILURE);
+//    }
+//    Logger::log("Server initializing ... done !");
+
+    sock->sock_init(true);
 }
 
 int Server::create_socket()
 {
-    Logger::log("creating listening for this server ...");
-    int socket_fd = -1;
-    addrinfo *rp;
-    int optval = 1;
-    for( rp = result; rp != nullptr; rp = rp->ai_next)
-    {
-        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if(socket_fd == SOCKET_ERROR)
-        {
-            // on error we try the next address
-            continue;
-        }
-        if(setsockopt(socket_fd, SOL_SOCKET,
-                      SO_REUSEADDR,&optval,
-                      sizeof(optval)) == SOCKET_ERROR)
-        {
-            perror("setsockopt");
-            return SOCKET_ERROR;
-        }
-        if(bind(socket_fd,
-                rp->ai_addr,
-                rp->ai_addrlen) == 0)
-        {
-            ip = rp->ai_addr->sa_data;
-            break; // Success !
-        }
-        close(socket_fd);
-    }
-    if(rp == nullptr) // could not bind socket to any address of the list
-    {
-        std::cerr << "Fatal Error : couldn't find a suitable address" << std::endl;
-        socket_fd = SOCKET_ERROR;
-    }
+//    Logger::log("creating listening for this server ...");
+//    int socket_fd = -1;
+//    addrinfo *rp;
+//    int optval = 1;
+//    for( rp = result; rp != nullptr; rp = rp->ai_next)
+//    {
+//        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+//        if(socket_fd == SOCKET_ERROR)
+//        {
+//            // on error we try the next address
+//            continue;
+//        }
+//        if(setsockopt(socket_fd, SOL_SOCKET,
+//                      SO_REUSEADDR,&optval,
+//                      sizeof(optval)) == SOCKET_ERROR)
+//        {
+//            perror("setsockopt");
+//            return SOCKET_ERROR;
+//        }
+//        if(bind(socket_fd,
+//                rp->ai_addr,
+//                rp->ai_addrlen) == 0)
+//        {
+//            ip = rp->ai_addr->sa_data;
+//            break; // Success !
+//        }
+//        close(socket_fd);
+//    }
+//    if(rp == nullptr) // could not bind socket to any address of the list
+//    {
+//        std::cerr << "Fatal Error : couldn't find a suitable address" << std::endl;
+//        socket_fd = SOCKET_ERROR;
+//    }
 
-    // enable socket connexions.
-    // make it a socket server
-    else if(listen(socket_fd, BACKLOG) == SOCKET_ERROR)
-    {
-        perror("listen: ");
-        socket_fd = SOCKET_ERROR;
-    }
+//    // enable socket connexions.
+//    // make it a socket server
+//    else if(listen(socket_fd, BACKLOG) == SOCKET_ERROR)
+//    {
+//        perror("listen: ");
+//        socket_fd = SOCKET_ERROR;
+//    }
 
-    freeaddrinfo(rp);
-    connectToServers();
-    Logger::log("creating listening for this server ... done !");
-    Logger::log("Server Connexion Info : \n"
-                " ip address : " + ip + "\n"
-                                        " listening port : " + port + "\n");
-    return socket_fd;
+//    freeaddrinfo(rp);
+//    connectToServers();
+//    Logger::log("creating listening for this server ... done !");
+//    Logger::log("Server Connexion Info : \n"
+//                " ip address : " + ip + "\n"
+//                                        " listening port : " + port + "\n");
+//    return socket_fd;
+
+    sock->sock_bind();
+    return sock->sock_listen();
 }
 
 void Server::start()
@@ -122,19 +129,17 @@ void Server::start()
     {
         client_socket_fd = new int;
         Logger::log("waiting for new Connexion ...");
-        *client_socket_fd = accept(listening_socket, (sockaddr*)&client_addr, &addrlen);
+        //*client_socket_fd = accept(listening_socket, (sockaddr*)&client_addr, &addrlen);
+         *client_socket_fd = sock->sock_accept();
         if(*client_socket_fd == -1)
         {
             perror("accept error");
             continue;
         }
-        if(getnameinfo((sockaddr*)&client_addr,addrlen, host, NI_MAXHOST, service,
-                       NI_MAXSERV, 0) == 0)
-        {
-            std::thread worker{&Server::client_handler,this, *client_socket_fd};
-            worker.detach();
-            client_socket_fd = nullptr;
-        }
+        Logger::log("New Connection ...");
+        std::thread worker{&Server::client_handler,this, *client_socket_fd};
+        worker.detach();
+        client_socket_fd = nullptr;
     }
 }
 
@@ -310,6 +315,7 @@ void Server::removeServer(int server_uid)
 int Server::sendToClient(int client_uid, void *data, int n)
 {
 
+    Logger::log("Client handler started");
     int count = 0;
     User *client = getClient(client_uid);
     if(client)
@@ -340,7 +346,7 @@ void Server::client_handler(int socket_fd)
     while(!client.isGone())
     {
         count = read(socket_fd, buffer, BUFFER_SIZE);
-        if(count < 0)
+        if(count <= 0)
         {
             client.setGone();
         }
@@ -417,7 +423,7 @@ void Server::print_raw_data(char *data, int size) const
 {
     Logger::log("Printing raw data");
     std::ofstream file;
-    file.open("raw_data.log", std::ios::app);
+    file.open("raw_data_server.log", std::ios::app);
 
     if(file.is_open())
     {
@@ -641,85 +647,87 @@ void Server::print_userlist()
     }
 }
 
-int Server::sctp_init()
-{
-    int    listening_sock;
-    int    onoff = 1;
-    struct sockaddr_in  sin[1];
-    struct sctp_initmsg  initmsg;
+//int Server::sctp_init()
+//{
+//    int    listening_sock;
+//    int    onoff = 1;
+//    struct sockaddr_in  sin[1];
+//    struct sctp_initmsg  initmsg;
 
-    // One to One Style
-    if ((listening_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP)) == -1) {
-        perror("socket");
-        exit(1);
-    }
+//    // One to One Style
+//    if ((listening_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP)) == -1) {
+//        perror("socket");
+//        exit(1);
+//    }
 
-    sin->sin_family = AF_INET;
-    sin->sin_port = htons(9012);
-    sin->sin_addr.s_addr = INADDR_ANY;
-    if (bind(listening_sock, (struct sockaddr *)sin, sizeof (*sin)) == -1) {
-        perror("bind");
-        exit(1);
-    }
+//    sin->sin_family = AF_INET;
+//    sin->sin_port = htons(9012);
+//    sin->sin_addr.s_addr = INADDR_ANY;
+//    if (bind(listening_sock, (struct sockaddr *)sin, sizeof (*sin)) == -1) {
+//        perror("bind");
+//        exit(1);
+//    }
 
-    if (listen(listening_sock, 1) == -1) {
-        perror("listen");
-        exit(1);
-    }
+//    if (listen(listening_sock, 1) == -1) {
+//        perror("listen");
+//        exit(1);
+//    }
 
-    (void) memset(&initmsg, 0, sizeof(struct sctp_initmsg));
-    initmsg.sinit_num_ostreams = 1;
-    initmsg.sinit_max_instreams = 0;
-    initmsg.sinit_max_attempts = 1;
-    if (setsockopt(listening_sock, IPPROTO_SCTP, SCTP_INITMSG, &initmsg,
-                   sizeof(struct sctp_initmsg)) < 0) {
-        perror("SCTP_INITMSG");
-        exit (1);
-    }
+//    (void) memset(&initmsg, 0, sizeof(struct sctp_initmsg));
+//    initmsg.sinit_num_ostreams = 1;
+//    initmsg.sinit_max_instreams = 0;
+//    initmsg.sinit_max_attempts = 1;
+//    if (setsockopt(listening_sock, IPPROTO_SCTP, SCTP_INITMSG, &initmsg,
+//                   sizeof(struct sctp_initmsg)) < 0) {
+//        perror("SCTP_INITMSG");
+//        exit (1);
+//    }
 
-    /* Events to be notified for */
+//    /* Events to be notified for */
 
-    return listening_sock;
-}
-
-int Server::sctp_accept(int listening_sock)
-{
-    // hack : header not available
-    Logger::log("Listen Success");
-    int SOL_SCTP = 132;
-    struct sctp_paddrparams heartbeat;
-    struct sctp_event_subscribe events;
-    (void) memset(&events, 0, sizeof (events));
-    events.sctp_shutdown_event = 1;
-    heartbeat.spp_flags = SPP_HB_ENABLE;
-    heartbeat.spp_hbinterval = 5000;
-    heartbeat.spp_pathmaxrxt = 1;
-    /*Set Heartbeats*/
-        if(setsockopt(listening_sock, SOL_SCTP, SCTP_PEER_ADDR_PARAMS ,
-                      &heartbeat, sizeof(heartbeat)) != 0)
-            perror("setsockopt");
-        else
-            Logger::log("HB  Success");
-
-    if (setsockopt(listening_sock, IPPROTO_SCTP, SCTP_EVENTS, &events,
-                   sizeof (events)) < 0) {
-        perror("setsockopt SCTP_EVENTS");
-        exit(1);
-    }
+//    return listening_sock;
+//}
 
 
-    /* Wait for new associations */
-    int flags;
-    for (;;) {
+//int Server::sctp_accept(int listening_sock)
+//{
+//    // hack : header not available
+//    Logger::log("Listen Success");
+//    //int SOL_SCTP = 132;
+//    struct sctp_paddrparams heartbeat;
+//    struct sctp_event_subscribe events;
+//    (void) memset(&events, 0, sizeof (events));
+//    events.sctp_shutdown_event = 1;
+//    heartbeat.spp_flags = SPP_HB_ENABLE;
+//    heartbeat.spp_hbinterval = 5000;
+//    heartbeat.spp_pathmaxrxt = 1;
+//    /*Set Heartbeats*/
+//        if(setsockopt(listening_sock, SOL_SCTP, SCTP_PEER_ADDR_PARAMS ,
+//                      &heartbeat, sizeof(heartbeat)) != 0)
+//            perror("setsockopt");
+//        else
+//            Logger::log("HB  Success");
 
-        //Logger::log("New connexion ...");
+//    if (setsockopt(listening_sock, IPPROTO_SCTP, SCTP_EVENTS, &events,
+//                   sizeof (events)) < 0) {
+//        perror("setsockopt SCTP_EVENTS");
+//        exit(1);
+//    }
 
-        /* Echo back any and all data */
-        mirror(0);
-    }
-}
 
-void Server::mirror(int sock)
+//    /* Wait for new associations */
+//    int flags;
+//    for (;;) {
+
+//        //Logger::log("New connexion ...");
+
+//        /* Echo back any and all data */
+//        mirror(0);
+//    }
+//}
+
+
+        void Server::mirror(int sock)
 {
 
 }
@@ -753,7 +761,7 @@ int Server::updateClient(const std::string &username, int uid)
 
     if(header.flags == SYN | ACK)
     {
-        sendControlInfo();
+        //sendControlInfo();
     }
 
     client = nullptr;

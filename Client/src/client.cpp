@@ -14,6 +14,7 @@ Client::Client(const std::string &server_ip, const std::string &port):ip{server_
     loggedIn =false;
     stop_reading = false;
     stop_writting = false;
+    sock_client = new TCPSocket(server_ip, port);
     socket_fd =-1;
     usage =std::string
                 (
@@ -42,125 +43,96 @@ Client::~Client()
 
 }
 
-int Client::sctp_init()
-{
-    int    sock;
-    struct sctp_initmsg  initmsg;
-    initmsg.sinit_num_ostreams = 1;
-    initmsg.sinit_max_instreams = 0;
-    initmsg.sinit_max_attempts = 1;
-
-    // One to One Style
-    if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP)) == -1) {
-        perror("socket");
-        exit(1);
-    }
-    setsockopt(sock, IPPROTO_SCTP, SCTP_INITMSG, &initmsg,
-                   sizeof(initmsg));
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(50000);
-    sin.sin_addr.s_addr = inet_addr(ip.c_str());
-
-
-    /* Events to be notified for */
-
-    return sock;
-}
-
-int Client::sctp_connect(int sock)
-{
-    connect(sock, (struct sockaddr*)&sin, sizeof(sin));
-    Logger::log("Successfully connected to server");
-    std::this_thread::sleep_for(std::chrono::minutes(1));
-    close(sock);
-
-}
 
 void Client::irq_handler(int irq)
 {
     if(irq == SIGINT)
     {
         Logger::log("\n... quitting the app ");
-        logout();
+        //logout();
         quit = true;
     }
 }
 
 void Client::init()
 {
-    Logger::log("Client initialization ...");
-    if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
-    {
-        std::cerr << "signal" << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-    if(signal(SIGINT,Handler::handler) == SIG_ERR)
-    {
-        std::cerr << "signal" << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
+//    Logger::log("Client initialization ...");
+//    if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+//    {
+//        std::cerr << "signal" << std::endl;
+//        std::exit(EXIT_FAILURE);
+//    }
+//    if(signal(SIGINT,Handler::handler) == SIG_ERR)
+//    {
+//        std::cerr << "signal" << std::endl;
+//        std::exit(EXIT_FAILURE);
+//    }
 
-    //port = SERVER_PORT;
-    // getaddrinfo() to get a list of usable addresses
-    struct sockaddr_in  sin[1];
-    struct sctp_initmsg  initmsg;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_canonname = nullptr;
-    hints.ai_addr = nullptr;
-    hints.ai_next = nullptr;
-    // Work with IPV4/6
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_SCTP;
-    hints.ai_flags =  AI_NUMERICSERV ;
-
-
+//    //port = SERVER_PORT;
+//    // getaddrinfo() to get a list of usable addresses
+//    struct sockaddr_in  sin[1];
+//    struct sctp_initmsg  initmsg;
+//    memset(&hints, 0, sizeof(struct addrinfo));
+//    hints.ai_canonname = nullptr;
+//    hints.ai_addr = nullptr;
+//    hints.ai_next = nullptr;
+//    // Work with IPV4/6
+//    hints.ai_family = AF_UNSPEC;
+//    hints.ai_socktype = SOCK_STREAM;
+//    hints.ai_protocol = IPPROTO_SCTP;
+//    hints.ai_flags =  AI_NUMERICSERV ;
 
 
-    // we could provide a host instead of nullptr
-    /*
-    if(getaddrinfo(ip.c_str(),
-                   port.c_str(),
-                   &hints,
-                   &result) != 0)
-    {
-        perror("getaddrinfo()");
-        std::exit(EXIT_FAILURE);
-    }*/
-    Logger::log("Client initialization ... done");
+
+
+//    // we could provide a host instead of nullptr
+//    /*
+//    if(getaddrinfo(ip.c_str(),
+//                   port.c_str(),
+//                   &hints,
+//                   &result) != 0)
+//    {
+//        perror("getaddrinfo()");
+//        std::exit(EXIT_FAILURE);
+//    }*/
+//    Logger::log("Client initialization ... done");
+
+    sock_client->sock_init(false);
 }
 
 int Client::create_socket()
 {
-    Logger::log("socket creation  ...");
-    addrinfo *rp;
-    for( rp = result; rp != nullptr; rp = rp->ai_next)
-    {
-        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if(socket_fd == SOCKET_ERROR)
-        {
-            // on error we try the next address
-            continue;
-        }
-        Logger::log("socket created  ...");
-        if(connect(socket_fd,
-                   rp->ai_addr,
-                   rp->ai_addrlen) != SOCKET_ERROR)
-        {
-            Logger::log("connexion etablished ...");
-            break; // success
-        }
-        close(socket_fd);
-    }
-    if(rp == nullptr) // could not bind socket to any address of the list
-    {
-        std::cerr << "Fatal Error : couldn't find a suitable address" << std::endl;
-        socket_fd = SOCKET_ERROR;
-        exit(EXIT_FAILURE);
-    }
+//    Logger::log("socket creation  ...");
+//    addrinfo *rp;
+//    for( rp = result; rp != nullptr; rp = rp->ai_next)
+//    {
+//        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+//        if(socket_fd == SOCKET_ERROR)
+//        {
+//            // on error we try the next address
+//            continue;
+//        }
+//        Logger::log("socket created  ...");
+//        if(connect(socket_fd,
+//                   rp->ai_addr,
+//                   rp->ai_addrlen) != SOCKET_ERROR)
+//        {
+//            Logger::log("connexion etablished ...");
+//            break; // success
+//        }
+//        close(socket_fd);
+//    }
+//    if(rp == nullptr) // could not bind socket to any address of the list
+//    {
+//        std::cerr << "Fatal Error : couldn't find a suitable address" << std::endl;
+//        socket_fd = SOCKET_ERROR;
+//        exit(EXIT_FAILURE);
+//    }
 
-    freeaddrinfo(rp);
-    return socket_fd;
+//    freeaddrinfo(rp);
+//    return socket_fd;
+
+    return sock_client->sock_connect();
 }
 void Client::logout()
 {
@@ -208,11 +180,9 @@ int Client::login()
             log = create_loginout(username);
             void *data = Serialization::Serialize<LogInOut>::serialize(log);
             int len = STR_LEN + sizeof(Header);
-            send_data(data, len);
-            len = sizeof(Header);
-            //std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            ret = read(socket_fd, data, len);
-            if(ret < 0)
+            sock_client->sock_send((char*)data, len);
+            ret = sock_client->sock_read((char*)data, sizeof(Header));
+            if(ret <= 0)
             {
                 Logger::log("Connexion error with server: unable to read from socket");
                 exit(EXIT_FAILURE);
@@ -220,12 +190,13 @@ int Client::login()
 
             if(ret > 1)
             {
+                Logger::log("Client received data ...");
                 decode(data, ret);
             }
             if(ret == 1)
             {
                 //Logger::log("Client received heartbeat signal ...");
-                ret = read(socket_fd, data, len);
+                ret = sock_client->sock_read((char*)data, len);
                 if(ret > 1)
                 {
                     decode(data, ret);
@@ -244,22 +215,13 @@ int Client::login()
     return ret;
 }
 
-void Client::start(bool testMode)
+void Client::start()
 {
    create_socket();
    std::thread w_worker{&Client::write_task, this};
    w_worker.detach();
    login();
-   if(testMode)
-   {
-       send_test();
-   }
-   else
-   {
-       shell();
-   }
-
-
+   shell();
 }
 
 void Client::send_data(void *data, int size)
@@ -278,6 +240,7 @@ void Client::send_data(void *data, int size)
 int Client::decode(void *data, int size)
 {
 
+    Logger::log("client received " + std::to_string(size) + " bytes ...");
     int ret = -1;
     char *ptr = (char*)data;
     LogInOut log;
@@ -305,7 +268,7 @@ int Client::decode(void *data, int size)
 void Client::print_raw_data(char *data, int size) const
 {
     std::ofstream file;
-    file.open("raw_data.log", std::ios::app);
+    file.open("raw_data_client.log", std::ios::app);
 
     if(file.is_open())
     {
@@ -392,6 +355,11 @@ void Client::shell()
 
 int Client::process_loginout(const LogInOut &log)
 {
+    Logger::log("Processing loginout function : ");
+    Logger::log("Log Flags : " + std::to_string(log.header.flags));
+    Logger::log("Log Type : " + std::to_string(log.header.type));
+    Logger::log("Log Version : " + std::to_string(log.header.version));
+    Logger::log("Log Length : " + std::to_string(log.header.length));
     int ret = -1;
     if(log.header.flags == (SYN | ACK | DUP))
     {
@@ -486,7 +454,7 @@ void Client::read_task()
     char *ptr = nullptr;
     while(!(quit && stop_reading) )
     {
-        count = read(socket_fd,buffer, BUFFER_SIZE );
+        count = sock_client->sock_read(buffer, BUFFER_SIZE );
         if(count < 0)
         {
             perror("Read Task: ");
@@ -515,12 +483,13 @@ void Client::write_task()
     while(!(quit && stop_writting))
     {
         txd_data.wait_and_pop(entry);
-        if(write(socket_fd, entry.first, entry.second) < 0)
+        if(sock_client->sock_send((char*)entry.first, entry.second) < 0)
         {
             perror("Write Task: ");
             quit = true;
             stop_writting = true;
             break;
         }
+        else Logger::log("Client : data sent ...");
     }
 }

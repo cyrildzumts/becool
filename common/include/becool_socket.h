@@ -13,15 +13,18 @@
 class Socket
 {
 public:
-    virtual ~Socket(){}
+    virtual ~Socket(){close(socket_fd);}
 
     virtual int getSocket()const;
 
     /**
      * @brief sock_init initialize the socket
      * to the socket
+     * @params server : True --> initialize this for
+     * a server usage
+     *                : False --> Client usage
      */
-    virtual void sock_init() = 0;
+    virtual void sock_init(bool server);
     /**
      * @brief sock_create create the appropiatre
      * socket. This method should be called only
@@ -73,7 +76,7 @@ public:
      * @return the number of sent byte on success.
      *         on error  return -1
      */
-    virtual int sock_send(int to_fd, char *buffer, size_t count);
+    virtual int sock_send(char *buffer, size_t count);
     /**
      * @brief sock_read read count byte from from_fd and save the bytes in
      * buffer
@@ -83,11 +86,13 @@ public:
      * @return on success returns the number of bytes read.
      *         on error returns -1
      */
-    virtual int sock_read(int from_fd, char *buffer, size_t count);
+    virtual int sock_read(char *buffer, size_t count);
 
 protected:
     int socket_fd;
     sockaddr *addr;
+    sockaddr_in self_addr;
+    sockaddr_in peer_addr;
     socklen_t addrlen;
     addrinfo hints;
     addrinfo *result;
@@ -104,24 +109,31 @@ class TCPSocket : public Socket
 
 public:
     TCPSocket(const std::string &ip, const std::string &port);
-    ~TCPSocket();
+    virtual ~TCPSocket();
     // Socket interface
 public:
-    virtual void sock_init() override;
-    virtual int sock_accept() override;
+    virtual void sock_init(bool server) override;
+    //virtual int sock_accept() override;
 };
 
 class SCTPSocket : public Socket
 {
 
+public:
+    SCTPSocket(const std::string &ip, const std::string &port);
+    ~SCTPSocket();
 
     // Socket interface
 public:
-    virtual void sock_init() override;
+    virtual void sock_init(bool server) override;
     virtual int sock_create() override;
-    virtual int sock_accept() override;
-    virtual int sock_send(int to_fd, char *buffer, size_t count) override;
-    virtual int sock_read(int from_fd, char *buffer, size_t count) override;
+    //virtual int sock_accept() override;
+    virtual int sock_send(char *buffer, size_t count) override;
+    virtual int sock_read(char *buffer, size_t count) override;
+    virtual int sock_bind() override;
+
+private:
+    void sctp_init();
 
 private:
     sockaddr_in sockaddr;
