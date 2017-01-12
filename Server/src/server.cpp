@@ -10,8 +10,8 @@ Server::Server(const std::string &ip, const std::string &port): ip{ip}, port{por
     stopped = false;
     name = "Server";
     user_list_changed = false;
-    sock = new TCPSocket(ip, port);
-    //sock = new SCTPSocket(ip, port);
+    //sock = new TCPSocket(ip, port);
+    sock = new SCTPSocket(ip, port);
 
 }
 
@@ -329,8 +329,6 @@ void Server::client_handler(int socket_fd)
             client->setGone();
         }
     }
-
-    Logger::log("leaving client handler ...");
 }
 
 int Server::decode_and_process(void *data, int sender_uid)
@@ -372,7 +370,6 @@ void Server::connectToServers()
 
 void Server::print_raw_data(char *data, int size) const
 {
-    Logger::log("Printing raw data");
     std::ofstream file;
     file.open("raw_data_server.log", std::ios::app);
 
@@ -459,8 +456,7 @@ int Server::process_message(const Message &message,
     return count;
 }
 
-//TODO only send message to client with username
-// Do not include server( client without name
+
 int Server::process_get_request(int sender_uid)
 {
     int ret = 0;

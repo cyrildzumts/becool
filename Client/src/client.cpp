@@ -14,8 +14,9 @@ Client::Client(const std::string &server_ip, const std::string &port):ip{server_
     loggedIn =false;
     stop_reading = false;
     stop_writting = false;
-    sock_client = new TCPSocket(server_ip, port);
-    socket_fd =-1;
+    //sock_client = new TCPSocket(server_ip, port);
+    sock_client = new SCTPSocket(server_ip, port);
+
     usage =std::string
                 (
                      "-------------------------------------------------------------\n"
@@ -56,82 +57,11 @@ void Client::irq_handler(int irq)
 
 void Client::init()
 {
-//    Logger::log("Client initialization ...");
-//    if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
-//    {
-//        std::cerr << "signal" << std::endl;
-//        std::exit(EXIT_FAILURE);
-//    }
-//    if(signal(SIGINT,Handler::handler) == SIG_ERR)
-//    {
-//        std::cerr << "signal" << std::endl;
-//        std::exit(EXIT_FAILURE);
-//    }
-
-//    //port = SERVER_PORT;
-//    // getaddrinfo() to get a list of usable addresses
-//    struct sockaddr_in  sin[1];
-//    struct sctp_initmsg  initmsg;
-//    memset(&hints, 0, sizeof(struct addrinfo));
-//    hints.ai_canonname = nullptr;
-//    hints.ai_addr = nullptr;
-//    hints.ai_next = nullptr;
-//    // Work with IPV4/6
-//    hints.ai_family = AF_UNSPEC;
-//    hints.ai_socktype = SOCK_STREAM;
-//    hints.ai_protocol = IPPROTO_SCTP;
-//    hints.ai_flags =  AI_NUMERICSERV ;
-
-
-
-
-//    // we could provide a host instead of nullptr
-//    /*
-//    if(getaddrinfo(ip.c_str(),
-//                   port.c_str(),
-//                   &hints,
-//                   &result) != 0)
-//    {
-//        perror("getaddrinfo()");
-//        std::exit(EXIT_FAILURE);
-//    }*/
-//    Logger::log("Client initialization ... done");
-
     sock_client->sock_init(false);
 }
 
 int Client::create_socket()
 {
-//    Logger::log("socket creation  ...");
-//    addrinfo *rp;
-//    for( rp = result; rp != nullptr; rp = rp->ai_next)
-//    {
-//        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-//        if(socket_fd == SOCKET_ERROR)
-//        {
-//            // on error we try the next address
-//            continue;
-//        }
-//        Logger::log("socket created  ...");
-//        if(connect(socket_fd,
-//                   rp->ai_addr,
-//                   rp->ai_addrlen) != SOCKET_ERROR)
-//        {
-//            Logger::log("connexion etablished ...");
-//            break; // success
-//        }
-//        close(socket_fd);
-//    }
-//    if(rp == nullptr) // could not bind socket to any address of the list
-//    {
-//        std::cerr << "Fatal Error : couldn't find a suitable address" << std::endl;
-//        socket_fd = SOCKET_ERROR;
-//        exit(EXIT_FAILURE);
-//    }
-
-//    freeaddrinfo(rp);
-//    return socket_fd;
-
     return sock_client->sock_connect();
 }
 void Client::logout()
@@ -190,12 +120,10 @@ int Client::login()
 
             if(ret > 1)
             {
-                Logger::log("Client received data ...");
                 decode(data, ret);
             }
             if(ret == 1)
             {
-                //Logger::log("Client received heartbeat signal ...");
                 ret = sock_client->sock_read((char*)data, len);
                 if(ret > 1)
                 {
@@ -239,8 +167,6 @@ void Client::send_data(void *data, int size)
 
 int Client::decode(void *data, int size)
 {
-
-    Logger::log("client received " + std::to_string(size) + " bytes ...");
     int ret = -1;
     char *ptr = (char*)data;
     LogInOut log;
@@ -355,11 +281,7 @@ void Client::shell()
 
 int Client::process_loginout(const LogInOut &log)
 {
-    Logger::log("Processing loginout function : ");
-    Logger::log("Log Flags : " + std::to_string(log.header.flags));
-    Logger::log("Log Type : " + std::to_string(log.header.type));
-    Logger::log("Log Version : " + std::to_string(log.header.version));
-    Logger::log("Log Length : " + std::to_string(log.header.length));
+
     int ret = -1;
     if(log.header.flags == (SYN | ACK | DUP))
     {
@@ -438,9 +360,9 @@ void Client::send_test()
 
 void Client::show_userlist() const
 {
-    Logger::log("There are "
+    Logger::log("Available Users : "
                 + std::to_string(userlist.size())
-                + " Available Users : ");
+                );
     for(std::string user : userlist)
     {
         Logger::log("* " + user);
@@ -455,11 +377,12 @@ void Client::read_task()
     while(!(quit && stop_reading) )
     {
         count = sock_client->sock_read(buffer, BUFFER_SIZE );
-        if(count < 0)
+        if(count <= 0)
         {
             perror("Read Task: ");
             quit = true;
             stop_reading = true;
+            exit(EXIT_FAILURE);
             break;
         }
         else if(count == 1)
@@ -474,6 +397,7 @@ void Client::read_task()
             delete[] ptr;
         }
     }
+    Logger::log("Read Task exit ...");
 }
 
 void Client::write_task()
@@ -490,6 +414,6 @@ void Client::write_task()
             stop_writting = true;
             break;
         }
-        else Logger::log("Client : data sent ...");
+        //else Logger::log("Client : data sent ...");
     }
 }

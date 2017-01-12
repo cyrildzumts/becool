@@ -40,7 +40,7 @@ namespace Tools {
     inline std::vector<std::string> input_arg_reader(const std::string &input)
     {
         std::vector<std::string> args;
-        if(!input.empty() && (input.at(0) == '/'))
+        if( !input.empty() && ((input.at(0) == '/') || (input.at(0) == '@')) )
         {
             std::istringstream line_stream(input);
             std::string line;
