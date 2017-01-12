@@ -3,12 +3,12 @@
 
 #include <fstream>
 #include <limits>
-#include "common.h"
-#include "logger.h"
-#include "serialization.h"
-#include "queue.h"
-#include "inputargreader.h"
-#include "becool_socket.h"
+#include "../../common/include/common.h"
+#include "../../common/include/logger.h"
+#include "../../common/include/serialization.h"
+#include "../../common/include/queue.h"
+#include "../../common/include/inputargreader.h"
+#include "../../common/include/becool_socket.h"
 using namespace std::placeholders;
 
 class Client

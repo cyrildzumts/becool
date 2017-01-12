@@ -1,4 +1,4 @@
-#include "remoteentry.h"
+#include "../include/remoteentry.h"
 
 RemoteEntry::RemoteEntry()
 {

@@ -1,10 +1,10 @@
 #ifndef SERVER_H
 #define SERVER_H
-#include "becool_socket.h"
+#include "../../common/include/becool_socket.h"
 #include "user.h"
 #include "remoteentry.h"
-#include "serialization.h"
-#include "logger.h"
+#include "../../common/include/serialization.h"
+#include "../../common/include/logger.h"
 #include <iterator>
 #include <algorithm>
 #

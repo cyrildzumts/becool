@@ -3,7 +3,7 @@
 
 #include <string>
 #include <vector>
-#include "protocol.h"
+#include "../../common/include/protocol.h"
 
 class RemoteEntry
 {

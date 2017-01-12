@@ -1,6 +1,6 @@
 #include <iostream>
 #include "../include/client.h"
-#include "inputargreader.h"
+#include "../../common/include/inputargreader.h"
 
 using namespace std;
 
