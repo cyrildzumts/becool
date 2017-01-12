@@ -80,8 +80,7 @@ public:
      */
     int decode_and_process(void *data, int sender_uid);
     void connectToServers();
-    //int sctp_init();
-    //int sctp_accept(int listening_sock);
+
 
 private:
     void print_raw_data(char *data, int size)const;
@@ -134,9 +133,9 @@ private:
     void init_activ_socket(const std::string &server_ip, const std::string &server_port);
     void create_activ_socket();
     void print_userlist();
+    User *findUser(int fd);
 
 
-    void mirror(int sock);
 private:
     Socket *sock;
     int listening_socket;
@@ -164,6 +163,7 @@ private:
     std::string name;
     std::string ip;
     bool user_list_changed;
+    fd_set sockets;
 
     void send_error_message(const Message &message, int count, int sender_uid);
 };
